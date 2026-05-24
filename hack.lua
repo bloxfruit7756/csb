@@ -31,6 +31,7 @@ local Config = {
     AutoType = false,
     CopyPaste = false,
     TypoFix = false,
+    AutoInject = false,   -- NEW toggle
     AutoEnter = true,
     CPS = 16,
     CopyPasteDelay = 0.0
@@ -157,7 +158,7 @@ local function ForceUpdateGameUI(newWord)
     end
 end
 
--- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ //
+-- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ (С ФИНАЛЬНОЙ ПРОВЕРКОЙ) //
 local function TypeWord(textbox, word, cps, pressEnter, modeName)
     if not textbox or not word or word == "" then
         return false
@@ -189,6 +190,8 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
             (modeName == "AutoType" and Config.AutoType)
             or
             (modeName == "CopyPaste" and Config.CopyPaste)
+            or
+            (modeName == "AutoInject" and Config.AutoInject)
         )
     end
 
@@ -274,39 +277,28 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         i += 1
     end
 
+    -- FINAL VERIFICATION: ensure textbox contains the full word even if it was cleared
     ForceText(word)
+    task.wait(0.05)
 
-    task.wait()
-
-    ForceText(word)
+    if textbox.Text ~= word then
+        ForceText(word)
+        Rayfield:Notify({
+            Title = "Text was cleared",
+            Content = "The game deleted the text, but I restored it.",
+            Duration = 1.5
+        })
+    end
 
     if pressEnter and Config.AutoEnter and IsValid() then
         textbox:CaptureFocus()
-
         task.wait()
-
-        VirtualInputManager:SendKeyEvent(
-            true,
-            Enum.KeyCode.Return,
-            false,
-            game
-        )
-
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
         task.wait(0.015)
-
-        VirtualInputManager:SendKeyEvent(
-            false,
-            Enum.KeyCode.Return,
-            false,
-            game
-        )
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
 
         task.delay(0.03, function()
-            if textbox
-            and textbox.Parent
-            and textbox.Text ~= ""
-            and textbox.Text ~= word then
-
+            if textbox and textbox.Parent and textbox.Text == word then
                 textbox.Text = ""
                 textbox.CursorPosition = 1
             end
@@ -314,7 +306,6 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
     end
 
     CurrentTypingProgress.current = #word
-
     return true
 end
 
@@ -376,7 +367,49 @@ local function DoCopyPaste(word, textbox)
     return true
 end
 
--- // НОВАЯ ФУНКЦИЯ: ИНЖЕКТ ПОБУКВЕННО (letter‑by‑letter, уважает CPS) //
+-- // ФУНКЦИЯ АВТОМАТИЧЕСКОГО ИНЖЕКТА (letter‑by‑letter) //
+local function DoAutoInject(word, textbox)
+    if IsBusy then return false end
+    if not Config.AutoInject or not Config.AutoType then return false end
+    if not word or word == "" then return false
+    
+    IsBusy = true
+    textbox:CaptureFocus()
+    textbox.Text = ""
+    task.wait(0.05)
+    
+    local delay = 1 / Config.CPS
+    local typed = ""
+    for i = 1, #word do
+        if not Config.AutoInject or not Config.AutoType then
+            break
+        end
+        typed = typed .. string.sub(word, i, i)
+        textbox.Text = typed
+        textbox.CursorPosition = i + 1
+        if i < #word then
+            task.wait(delay)
+        end
+    end
+    
+    if typed == word and Config.AutoEnter and Config.AutoInject and Config.AutoType then
+        task.wait(0.05)
+        textbox:CaptureFocus()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+        task.wait(0.02)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+    end
+    
+    Stats.Pasted = Stats.Pasted + 1
+    Stats.Total = Stats.Total + 1
+    RefreshStats()
+    LastTypingTime = tick()
+    
+    IsBusy = false
+    return true
+end
+
+-- // МАНУАЛЬНЫЙ ИНЖЕКТ (тот же механизм) //
 local function InjectLetterByLetter()
     if not Config.AutoType then
         Rayfield:Notify({
@@ -418,17 +451,13 @@ local function InjectLetterByLetter()
     
     IsBusy = true
     textbox:CaptureFocus()
-    
-    -- Очищаем текстовое поле перед началом
     textbox.Text = ""
     task.wait(0.05)
     
     local delay = 1 / Config.CPS
     local typed = ""
-    
     for i = 1, #word do
         if not Config.AutoType then
-            -- Если пользователь выключил авто-тип во время инжекта, останавливаемся
             break
         end
         typed = typed .. string.sub(word, i, i)
@@ -439,7 +468,6 @@ local function InjectLetterByLetter()
         end
     end
     
-    -- Если слово напечатано полностью и AutoEnter включён, нажимаем Enter
     if typed == word and Config.AutoEnter and Config.AutoType then
         task.wait(0.05)
         textbox:CaptureFocus()
@@ -448,11 +476,9 @@ local function InjectLetterByLetter()
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     end
     
-    -- Обновляем статистику (как "Pasted" или отдельный счётчик)
     Stats.Pasted = Stats.Pasted + 1
     Stats.Total = Stats.Total + 1
     RefreshStats()
-    
     LastTypingTime = tick()
     IsBusy = false
     
@@ -515,15 +541,45 @@ TabHome:CreateButton({
     end
 })
 
--- НОВАЯ КНОПКА ИНЖЕКТА (letter‑by‑letter, с уважением к CPS)
+-- КНОПКА МАНУАЛЬНОГО ИНЖЕКТА
 TabHome:CreateButton({
-    Name = "💉 INJECT LETTER-BY-LETTER (Auto Type must be ON)",
+    Name = "💉 MANUAL INJECT (letter-by-letter)",
     Callback = function()
         InjectLetterByLetter()
     end
 })
 
 TabHome:CreateDivider()
+
+-- НОВЫЙ ТОГГЛ "AUTO INJECT"
+TabHome:CreateToggle({
+    Name = "⚡ AUTO INJECT (auto‑type letter‑by‑letter when word changes)",
+    CurrentValue = false,
+    Flag = "AutoInject",
+    Callback = function(v)
+        Config.AutoInject = v
+        if v then
+            -- Auto Type must be ON for injection
+            if not Config.AutoType then
+                Config.AutoType = true
+                -- Also turn off conflicting modes
+                Config.CopyPaste = false
+                Config.TypoFix = false
+                -- Reflect UI changes (simple notification)
+                Rayfield:Notify({
+                    Title = "Auto Inject enabled",
+                    Content = "Auto Type was turned ON. Bypass Paste & Typo Fixer disabled.",
+                    Duration = 3
+                })
+            else
+                -- Auto Type already on, still disable the others to avoid overlap
+                Config.CopyPaste = false
+                Config.TypoFix = false
+            end
+            LastHandledWord = "" -- force trigger on next word
+        end
+    end
+})
 
 TabHome:CreateToggle({
     Name = "🤖 AUTO TYPE (presses Enter)",
@@ -670,6 +726,7 @@ TabSettings:CreateButton({
         Config.AutoType = false
         Config.CopyPaste = false
         Config.TypoFix = false
+        Config.AutoInject = false
         pcall(function() Rayfield:Destroy() end)
     end
 })
@@ -790,7 +847,15 @@ task.spawn(function()
         end
         
         if textbox and not IsBusy and curWord ~= "" and curWord ~= LastHandledWord then
-            if Config.CopyPaste and #textbox.Text > 0 then
+            -- NEW: AUTO INJECT takes priority if enabled
+            if Config.AutoInject and Config.AutoType then
+                LabelStatus:Set("💉 Status: Auto Injecting...")
+                local success = DoAutoInject(curWord, textbox)
+                if success then 
+                    LastHandledWord = curWord
+                end
+                LabelStatus:Set("⚡ Status: Idle")
+            elseif Config.CopyPaste and #textbox.Text > 0 then
                 LabelStatus:Set("📋 Status: Copy Pasting...")
                 local success = DoCopyPaste(curWord, textbox)
                 if success then LastHandledWord = curWord end

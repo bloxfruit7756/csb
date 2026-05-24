@@ -1,13 +1,5 @@
 -- Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "✨ Spelling Bee | Complete Engine",
-    LoadingTitle = "Initializing...",
-    ConfigurationSaving = {Enabled = true, FolderName = "SpellingBee", FileName = "Config"},
-    KeySystem = false
-})
-
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
@@ -15,7 +7,7 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
--- GitHub settings
+-- // GITHUB НАСТРОЙКИ //
 local GITHUB_TOKEN = "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"
 local GIST_ID = "8030d59d84512ca1915f17ea335ded6"
 local GIST_FILE = "raefld.csb"
@@ -24,7 +16,7 @@ local SyncedWords = {}
 
 local REAL_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.99 Mobile Safari/537.36"
 
--- Engine variables
+-- // ПЕРЕМЕННЫЕ ДВИЖКА //
 local IsBusy = false
 local LastHandledWord = ""
 local LocalOverrideWord = ""
@@ -34,24 +26,24 @@ local TYPING_COOLDOWN = 1.7
 local ScriptRunning = true
 local LastSubmitTime = 0
 
--- Configuration
+-- // НАСТРОЙКИ //
 local Config = {
     AutoType = false,
     CopyPaste = false,
     TypoFix = false,
-    AutoInject = false,
     AutoEnter = true,
     CPS = 16,
     CopyPasteDelay = 0.0
 }
 
+-- // СТАТИСТИКА //
 local Stats = {
     Typed = 0,
     Pasted = 0,
     Total = 0
 }
 
--- Find WordValue
+-- // НАХОДИМ СЕТЕВУЮ ПЕРЕМЕННУЮ //
 local WordValue = nil
 for _, obj in ipairs(game:GetDescendants()) do
     if obj.Name == "WordValue" and obj:IsA("StringValue") then
@@ -65,23 +57,33 @@ if not WordValue then
     WordValue.Parent = game:GetService("ReplicatedStorage")
 end
 
+-- // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ ЦЕЛИ //
 local function GetCurrentTargetWord()
     if LocalOverrideWord ~= "" then return LocalOverrideWord end
     return WordValue.Value
 end
 
--- GitHub functions
+-- // ФУНКЦИИ СИНХРОНИЗАЦИИ GITHUB //
 local function LoadWordsFromGist()
     local url = string.format("https://api.github.com/gists/%s", GIST_ID)
-    local headers = {["Authorization"] = "token " .. GITHUB_TOKEN, ["User-Agent"] = REAL_USER_AGENT}
-    local success, response = pcall(function() return game:HttpGet(url, true, headers) end)
+    local headers = {
+        ["Authorization"] = "token " .. GITHUB_TOKEN,
+        ["User-Agent"] = REAL_USER_AGENT
+    }
+    
+    local success, response = pcall(function()
+        return game:HttpGet(url, true, headers)
+    end)
+    
     if success and response then
         local decoded = HttpService:JSONDecode(response)
         if decoded and decoded.files and decoded.files[GIST_FILE] then
             local content = decoded.files[GIST_FILE].content
             if content and content ~= "" then
                 for word in string.gmatch(content, "[^\r\n]+") do
-                    if word ~= "" then table.insert(SyncedWords, word) end
+                    if word ~= "" then
+                        table.insert(SyncedWords, word)
+                    end
                 end
             end
         end
@@ -90,45 +92,73 @@ end
 
 local function SaveWordToGist(word)
     if not SyncEnabled or word == "" then return end
-    for _, w in ipairs(SyncedWords) do if w == word then return end end
+    
+    for _, w in ipairs(SyncedWords) do
+        if w == word then return end
+    end
+    
     table.insert(SyncedWords, word)
+    
     local content = table.concat(SyncedWords, "\n")
     local patchData = {files = {[GIST_FILE] = {content = content}}}
+    
     local url = string.format("https://api.github.com/gists/%s", GIST_ID)
     local headers = {
         ["Authorization"] = "token " .. GITHUB_TOKEN,
         ["User-Agent"] = REAL_USER_AGENT,
         ["Content-Type"] = "application/json"
     }
+    
     pcall(function()
         game:HttpGet(url, true, headers, "PATCH", HttpService:JSONEncode(patchData))
     end)
 end
 
--- Find textbox
+-- // ПРОВЕРКА И ПОИСК ТЕКСТБОКСА //
 local function isRealTurnTextbox(obj)
     if not obj:IsA("TextBox") then return false end
+    
     local sg = obj:FindFirstAncestorOfClass("ScreenGui")
     if not sg or not sg.Enabled then return false end
     if not obj.Visible then return false end
+    
     local isChat = obj.Name:lower():find("chat") or (obj.Parent and obj.Parent.Name:lower():find("chat"))
     if isChat then return false end
+    
     return true
 end
 
 local function findMyTextbox()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return nil end
-    if pg:FindFirstChild("Textbox") and pg.Textbox:FindFirstChild("TextBox") then
-        local tb = pg.Textbox.TextBox
-        if isRealTurnTextbox(tb) then return tb end
+
+    -- Exact, hard‑coded path you provided
+    local textboxContainer = pg:FindFirstChild("Textbox")    -- the ScreenGui named "Textbox"
+    if textboxContainer then
+        local tb = textboxContainer:FindFirstChild("TextBox")  -- the actual TextBox inside it
+        if tb and tb:IsA("TextBox") and tb.Visible then
+            return tb
+        end
     end
-    for _, obj in ipairs(pg:GetDescendants()) do
-        if isRealTurnTextbox(obj) then return obj end
+
+    -- Optional: manual path (if you ever need it)
+    if CustomTextBoxPath and CustomTextBoxPath ~= "" then
+        local target = pg
+        for _, part in ipairs(CustomTextBoxPath:split("/")) do
+            if target then
+                target = target:FindFirstChild(part)
+            end
+        end
+        if target and target:IsA("TextBox") and target.Visible then
+            return target
+        end
     end
+
+    -- No fallback – never risk hitting the chat
     return nil
 end
 
+-- // ЛОКАЛЬНАЯ СИМУЛЯЦИЯ ИЗМЕНЕНИЯ ИНТЕРФЕЙСА ИГРЫ //
 local function ForceUpdateGameUI(newWord)
     if newWord == "" then return end
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -142,10 +172,14 @@ local function ForceUpdateGameUI(newWord)
     end
 end
 
--- Letter-by-letter typing with repair and final verification
+-- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ //
 local function TypeWord(textbox, word, cps, pressEnter, modeName)
-    if not textbox or not word or word == "" then return false end
+    if not textbox or not word or word == "" then
+        return false
+    end
+
     local delay = math.max(1 / cps, 0.001)
+
     local typingId = tostring(tick()) .. tostring(math.random(1000,9999))
     CurrentTypingId = typingId
 
@@ -160,91 +194,158 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
     textbox:CaptureFocus()
 
     local function IsValid()
-        return ScriptRunning and textbox and textbox.Parent and isRealTurnTextbox(textbox)
-            and GetCurrentTargetWord() == word and CurrentTypingId == typingId
-            and (
-                (modeName == "AutoType" and Config.AutoType) or
-                (modeName == "CopyPaste" and Config.CopyPaste) or
-                (modeName == "AutoInject" and Config.AutoInject)
-            )
+        return ScriptRunning
+        and textbox
+        and textbox.Parent
+        and isRealTurnTextbox(textbox)
+        and GetCurrentTargetWord() == word
+        and CurrentTypingId == typingId
+        and (
+            (modeName == "AutoType" and Config.AutoType)
+            or
+            (modeName == "CopyPaste" and Config.CopyPaste)
+        )
     end
 
     local function ForceText(text)
-        if textbox.Text ~= text then textbox.Text = text end
-        local desired = #text + 1
-        if textbox.CursorPosition ~= desired then textbox.CursorPosition = desired end
+        if textbox.Text ~= text then
+            textbox.Text = text
+        end
+
+        local desiredCursor = #text + 1
+
+        if textbox.CursorPosition ~= desiredCursor then
+            textbox.CursorPosition = desiredCursor
+        end
     end
 
     local function RepairText(expected)
         local now = tick()
-        if now - lastRepair < repairCooldown then return end
+
+        if now - lastRepair < repairCooldown then
+            return
+        end
+
         lastRepair = now
+
         local current = textbox.Text
-        if current == expected then return end
-        if #current > #expected then ForceText(expected); return end
+
+        if current == expected then
+            return
+        end
+
+        if #current > #expected then
+            ForceText(expected)
+            return
+        end
+
         if #current > 0 and word:sub(1, #current) == current then
             lastGoodText = current
             return
         end
+
         ForceText(expected)
     end
 
     ForceText("")
+
     local i = 1
+
     while i <= #word do
-        if not IsValid() then return false end
+        if not IsValid() then
+            return false
+        end
+
         local expected = word:sub(1, i)
+
         RepairText(expected)
+
         ForceText(expected)
+
         lastGoodText = expected
+
         CurrentTypingProgress.current = i
+
         local started = tick()
+
         while tick() - started < delay do
-            if not IsValid() then return false end
+            if not IsValid() then
+                return false
+            end
+
             RepairText(expected)
+
             task.wait()
         end
+
         local current = textbox.Text
+
         if current ~= expected then
-            if #current > 0 and word:sub(1, #current) == current then i = #current end
+            if #current > 0 and word:sub(1, #current) == current then
+                i = #current
+            end
         end
+
         i += 1
     end
 
-    -- Final verification
     ForceText(word)
-    task.wait(0.05)
-    if textbox.Text ~= word then
-        ForceText(word)
-        Rayfield:Notify({Title = "Text restored", Content = "Game tried to clear the answer.", Duration = 1.5})
-    end
+
+    task.wait()
+
+    ForceText(word)
 
     if pressEnter and Config.AutoEnter and IsValid() then
         textbox:CaptureFocus()
+
         task.wait()
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+
+        VirtualInputManager:SendKeyEvent(
+            true,
+            Enum.KeyCode.Return,
+            false,
+            game
+        )
+
         task.wait(0.015)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+
+        VirtualInputManager:SendKeyEvent(
+            false,
+            Enum.KeyCode.Return,
+            false,
+            game
+        )
+
         task.delay(0.03, function()
-            if textbox and textbox.Parent and textbox.Text == word then
-                textbox.Text = ""; textbox.CursorPosition = 1
+            if textbox
+            and textbox.Parent
+            and textbox.Text ~= ""
+            and textbox.Text ~= word then
+
+                textbox.Text = ""
+                textbox.CursorPosition = 1
             end
         end)
     end
+
     CurrentTypingProgress.current = #word
+
     return true
 end
 
--- Auto Type (full simulation)
+-- // ВЫПОЛНЕНИЕ АВТОВВОДА //
 local function DoAutoType(word, textbox)
     if IsBusy then return false end
     IsBusy = true
+    
     CurrentTypingProgress = {current = 0, total = #word, startTime = tick()}
     textbox:CaptureFocus()
     task.wait(0.04)
     textbox.Text = ""
     task.wait(0.01)
+    
     local success = TypeWord(textbox, word, Config.CPS, true, "AutoType")
+    
     if success and Config.AutoType and ScriptRunning then
         Stats.Typed = Stats.Typed + 1
         LastTypingTime = tick()
@@ -252,19 +353,27 @@ local function DoAutoType(word, textbox)
     Stats.Total = Stats.Total + 1
     RefreshStats()
     CurrentTypingProgress = {current = 0, total = 0, startTime = 0}
+    
     IsBusy = false
     return success
 end
 
--- Copy Paste (instant fill)
+-- // ВЫПОЛНЕНИЕ МГНОВЕННОЙ ВСТАВКИ //
 local function DoCopyPaste(word, textbox)
     if IsBusy then return false end
     IsBusy = true
-    if Config.CopyPasteDelay > 0 then task.wait(Config.CopyPasteDelay) end
-    if not Config.CopyPaste or not ScriptRunning or GetCurrentTargetWord() ~= word then
-        IsBusy = false; return false
+    
+    if Config.CopyPasteDelay > 0 then
+        task.wait(Config.CopyPasteDelay)
     end
+    
+    if not Config.CopyPaste or not ScriptRunning or GetCurrentTargetWord() ~= word then 
+        IsBusy = false
+        return false 
+    end
+    
     textbox.Text = word
+    
     if Config.AutoEnter then
         textbox:CaptureFocus()
         task.wait(0.01)
@@ -272,54 +381,128 @@ local function DoCopyPaste(word, textbox)
         task.wait(0.01)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     end
+    
     Stats.Pasted = Stats.Pasted + 1
     Stats.Total = Stats.Total + 1
     RefreshStats()
     LastTypingTime = tick()
+    
     IsBusy = false
     return true
 end
 
--- Auto Inject (letter-by-letter, respects CPS)
-local function DoAutoInject(word, textbox)
-    if IsBusy then return false end
-    if not Config.AutoInject or not Config.AutoType then return false end
-    if not word or word == "" then return false
+-- // НОВАЯ ФУНКЦИЯ: ИНЖЕКТ ПОБУКВЕННО (letter‑by‑letter, уважает CPS) //
+local function InjectLetterByLetter()
+    if not Config.AutoType then
+        Rayfield:Notify({
+            Title = "Inject blocked",
+            Content = "Auto Type must be ON to use Inject.",
+            Duration = 2
+        })
+        return false
+    end
+    
+    if IsBusy then
+        Rayfield:Notify({
+            Title = "Busy",
+            Content = "Script is currently typing/pasting. Try again later.",
+            Duration = 1.5
+        })
+        return false
+    end
+    
+    local textbox = findMyTextbox()
+    if not textbox then
+        Rayfield:Notify({
+            Title = "Textbox not found",
+            Content = "Could not locate the game's textbox.",
+            Duration = 2
+        })
+        return false
+    end
+    
+    local word = GetCurrentTargetWord()
+    if word == "" then
+        Rayfield:Notify({
+            Title = "No word",
+            Content = "Current word is empty. Check WordValue or Override.",
+            Duration = 2
+        })
+        return false
+    end
+    
     IsBusy = true
     textbox:CaptureFocus()
+    
+    -- Очищаем текстовое поле перед началом
     textbox.Text = ""
     task.wait(0.05)
+    
     local delay = 1 / Config.CPS
     local typed = ""
+    
     for i = 1, #word do
-        if not Config.AutoInject or not Config.AutoType then break end
+        if not Config.AutoType then
+            -- Если пользователь выключил авто-тип во время инжекта, останавливаемся
+            break
+        end
         typed = typed .. string.sub(word, i, i)
         textbox.Text = typed
         textbox.CursorPosition = i + 1
-        if i < #word then task.wait(delay) end
+        if i < #word then
+            task.wait(delay)
+        end
     end
-    if typed == word and Config.AutoEnter and Config.AutoInject and Config.AutoType then
+    
+    -- Если слово напечатано полностью и AutoEnter включён, нажимаем Enter
+    if typed == word and Config.AutoEnter and Config.AutoType then
         task.wait(0.05)
         textbox:CaptureFocus()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
         task.wait(0.02)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     end
+    
+    -- Обновляем статистику (как "Pasted" или отдельный счётчик)
     Stats.Pasted = Stats.Pasted + 1
     Stats.Total = Stats.Total + 1
     RefreshStats()
+    
     LastTypingTime = tick()
     IsBusy = false
+    
+    Rayfield:Notify({
+        Title = "Inject completed",
+        Content = string.format("Typed \"%s\" at %d CPS", word, Config.CPS),
+        Duration = 1.5
+    })
     return true
 end
 
--- UI functions
+-- // ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА //
+local Window = Rayfield:CreateWindow({
+    Name = "✨ Spelling Bee | Complete Engine",
+    LoadingTitle = "🤖 Restoring Assets...",
+    ConfigurationSaving = {Enabled = true, FolderName = "SpellingBee", FileName = "Config"}
+})
+
+local TabHome = Window:CreateTab("🏠 Home", 7733960981)
+local TabWords = Window:CreateTab("🔤 Override", 4370344717)
+local TabStats = Window:CreateTab("📊 Statistics", 4483362458)
+local TabSettings = Window:CreateTab("⚙️ Settings", 7734053495)
+
+-- ЭЛЕМЕНТЫ HOME TAB
+local LabelCurrent = TabHome:CreateLabel("📝 Current Word: None")
+local LabelLength = TabHome:CreateLabel("📏 Length: 0 characters")
+local LabelProgress = TabHome:CreateLabel("📈 Progress: 0% | 0/0 | 0.0s")
+local LabelStatus = TabHome:CreateLabel("⚡ Status: Idle")
+
 local function UpdateProgressDisplay()
     if not ScriptRunning then return end
     if CurrentTypingProgress.total > 0 then
         local percent = (CurrentTypingProgress.current / CurrentTypingProgress.total) * 100
         local remaining = (CurrentTypingProgress.total - CurrentTypingProgress.current) / Config.CPS
-        LabelProgress:Set(string.format("📈 Progress: %.1f%% | %d/%d | %.1fs",
+        LabelProgress:Set(string.format("📈 Progress: %.1f%% | %d/%d | %.1fs", 
             percent, CurrentTypingProgress.current, CurrentTypingProgress.total, remaining))
     else
         LabelProgress:Set("📈 Progress: 0% | 0/0 | 0.0s")
@@ -328,71 +511,36 @@ end
 
 local function UpdateCurrentWord()
     if not ScriptRunning then return end
-    local w = GetCurrentTargetWord()
-    if w and w ~= "" then
+    local word = GetCurrentTargetWord()
+    if word and word ~= "" then
         local postfix = (LocalOverrideWord ~= "" and " [LOCAL OVERRIDE]" or "")
-        LabelCurrent:Set("📝 Current Word: " .. w .. postfix)
-        LabelLength:Set(string.format("📏 Length: %d characters", #w))
+        LabelCurrent:Set("📝 Current Word: " .. word .. postfix)
+        LabelLength:Set(string.format("📏 Length: %d characters", #word))
     else
         LabelCurrent:Set("📝 Current Word: Waiting...")
         LabelLength:Set("📏 Length: 0 characters")
     end
 end
 
-function RefreshStats()
-    if not ScriptRunning then return end
-    S1:Set("🤖 Auto-Typed: " .. Stats.Typed)
-    S2:Set("📋 Copied & Pasted: " .. Stats.Pasted)
-    S3:Set("📊 Total Processed: " .. Stats.Total)
-end
-
--- Create tabs
-local TabHome = Window:CreateTab("🏠 Home", 7733960981)
-local TabWords = Window:CreateTab("🔤 Override", 4370344717)
-local TabStats = Window:CreateTab("📊 Statistics", 4483362458)
-local TabSettings = Window:CreateTab("⚙️ Settings", 7734053495)
-
--- Home tab elements
-local LabelCurrent = TabHome:CreateLabel("📝 Current Word: None")
-local LabelLength = TabHome:CreateLabel("📏 Length: 0 characters")
-local LabelProgress = TabHome:CreateLabel("📈 Progress: 0% | 0/0 | 0.0s")
-local LabelStatus = TabHome:CreateLabel("⚡ Status: Idle")
-
 TabHome:CreateButton({
     Name = "📋 Copy Current Word",
     Callback = function()
-        local w = GetCurrentTargetWord()
-        if w ~= "" then setclipboard(w) end
+        local target = GetCurrentTargetWord()
+        if target ~= "" then setclipboard(target) end
     end
 })
 
-TabHome:CreateDivider()
-
--- Auto Inject toggle (primary)
-TabHome:CreateToggle({
-    Name = "⚡ AUTO INJECT (letter‑by‑letter when word changes)",
+-- ============ MODIFIED: Inject Toggle instead of Button ============
+-- Сохраняем объект AutoType toggle, чтобы управлять им бесшумно
+local AutoTypeToggle = TabHome:CreateToggle({
+    Name = "🤖 AUTO TYPE (presses Enter)",
     CurrentValue = false,
-    Callback = function(v)
-        Config.AutoInject = v
-        if v then
-            if not Config.AutoType then Config.AutoType = true end
-            Config.CopyPaste = false
-            Config.TypoFix = false
-            LastHandledWord = ""
-            Rayfield:Notify({Title = "Auto Inject", Content = "Enabled. Auto Type turned ON.", Duration = 2})
-        end
-    end
-})
-
-TabHome:CreateToggle({
-    Name = "🤖 AUTO TYPE (full simulation, repairs mistakes)",
-    CurrentValue = false,
+    Flag = "AT",
     Callback = function(v)
         Config.AutoType = v
         if v then
             Config.CopyPaste = false
             Config.TypoFix = false
-            Config.AutoInject = false
             LastHandledWord = ""
         else
             IsBusy = false
@@ -402,15 +550,49 @@ TabHome:CreateToggle({
     end
 })
 
+-- Вспомогательная функция для бесшумного включения/выключения AutoType
+local function SetAutoTypeSilently(value)
+    if value then
+        Config.AutoType = true
+        Config.CopyPaste = false
+        Config.TypoFix = false
+        LastHandledWord = ""
+    else
+        Config.AutoType = false
+        IsBusy = false
+        CurrentTypingProgress = {current = 0, total = 0, startTime = 0}
+        LabelStatus:Set("⚡ Status: Idle")
+    end
+    AutoTypeToggle:Set(value)  -- обновляем UI без вызова callback
+end
+
+-- Новый тоггл "Inject", который автоматически включает AutoType
+TabHome:CreateToggle({
+    Name = "🔁 Inject (auto-enables AutoType)",
+    CurrentValue = false,
+    Flag = "InjectToggle",
+    Callback = function(v)
+        if v then
+            SetAutoTypeSilently(true)   -- включаем AutoType и отключаем конфликтующие режимы
+            InjectLetterByLetter()      -- сразу инжектим текущее слово
+        else
+            SetAutoTypeSilently(false)  -- выключаем AutoType
+        end
+    end
+})
+-- ===============================================================
+
+TabHome:CreateDivider()
+
 TabHome:CreateToggle({
     Name = "📋 BYPASS PASTE (Instant Fill + Enter)",
     CurrentValue = false,
+    Flag = "CP",
     Callback = function(v)
         Config.CopyPaste = v
         if v then
             Config.AutoType = false
             Config.TypoFix = false
-            Config.AutoInject = false
             LastHandledWord = ""
         else
             IsBusy = false
@@ -421,30 +603,34 @@ TabHome:CreateToggle({
 })
 
 TabHome:CreateToggle({
-    Name = "🔧 TYPO FIXER (auto‑correct while typing)",
+    Name = "🔧 TYPO FIXER (Keyboard Mashing Anti-Mistake)",
     CurrentValue = false,
+    Flag = "TF",
     Callback = function(v)
         Config.TypoFix = v
         if v then
             Config.AutoType = false
             Config.CopyPaste = false
-            Config.AutoInject = false
         end
     end
 })
 
 TabHome:CreateToggle({
-    Name = "↩️ AUTO ENTER (submits answer)",
+    Name = "↩️ AUTO ENTER (Submits Answer)",
     CurrentValue = true,
+    Flag = "AE",
     Callback = function(v) Config.AutoEnter = v end
 })
 
--- Override tab
-TabWords:CreateLabel("👑 Local Dictionary Override")
+-- ЭЛЕМЕНТЫ OVERRIDE TAB
+TabWords:CreateLabel("👑 Local Dictionary Modification")
+TabWords:CreateLabel("Forces your macros to target a specific word instead of game memory.")
+
 TabWords:CreateInput({
-    Name = "Force Word",
-    PlaceholderText = "Type a custom word here...",
+    Name = "Inject Round Word",
+    PlaceholderText = "Paste or type custom word here...",
     CurrentValue = "",
+    RemoveTextAfterFocusLost = false,
     Callback = function(v)
         if v and v ~= "" then
             LocalOverrideWord = tostring(v)
@@ -454,6 +640,7 @@ TabWords:CreateInput({
         end
     end
 })
+
 TabWords:CreateButton({
     Name = "❌ Clear Override",
     Callback = function()
@@ -463,10 +650,18 @@ TabWords:CreateButton({
     end
 })
 
--- Stats tab
+-- ЭЛЕМЕНТЫ STATISTICS TAB
 local S1 = TabStats:CreateLabel("🤖 Auto-Typed: 0")
 local S2 = TabStats:CreateLabel("📋 Copied & Pasted: 0")
 local S3 = TabStats:CreateLabel("📊 Total Processed: 0")
+
+function RefreshStats()
+    if not ScriptRunning then return end
+    S1:Set("🤖 Auto-Typed: " .. Stats.Typed)
+    S2:Set("📋 Copied & Pasted: " .. Stats.Pasted)
+    S3:Set("📊 Total Processed: " .. Stats.Total)
+end
+
 TabStats:CreateButton({
     Name = "🔄 Reset Statistics",
     Callback = function()
@@ -475,147 +670,65 @@ TabStats:CreateButton({
     end
 })
 
--- Settings tab
+-- ЭЛЕМЕНТЫ SETTINGS TAB
 TabSettings:CreateInput({
-    Name = "⚡ CPS (1-100)",
-    PlaceholderText = "Enter CPS",
+    Name = "⚡ Auto Type CPS",
+    PlaceholderText = "Enter CPS (1-999)",
     CurrentValue = tostring(Config.CPS),
+    Flag = "CPSInput",
     Callback = function(v)
-        local n = tonumber(v)
-        if n and n >= 1 then Config.CPS = n end
+        local num = tonumber(v)
+        if num and num >= 1 then Config.CPS = num end
     end
 })
+
 TabSettings:CreateSlider({
-    Name = "⏱️ Copy Paste Delay (sec)",
-    Range = {0, 3}, Increment = 0.05, CurrentValue = 0,
+    Name = "⏱️ Copy Paste Delay", Range = {0, 3}, Increment = 0.05, CurrentValue = 0.0, Flag = "CopyPasteDelay",
     Callback = function(v) Config.CopyPasteDelay = v end
 })
+
 TabSettings:CreateSlider({
-    Name = "⏰ Cooldown Between Words (sec)",
-    Range = {0.1, 5}, Increment = 0.1, CurrentValue = 1.2,
+    Name = "⏰ Cooldown Between Words", Range = {0.1, 5}, Increment = 0.1, CurrentValue = 1.2, Flag = "TypingCooldown",
     Callback = function(v) TYPING_COOLDOWN = v end
 })
+
 TabSettings:CreateDivider()
+
 TabSettings:CreateToggle({
-    Name = "🌐 GitHub Gist Sync",
-    CurrentValue = false,
+    Name = "🌐 GITHUB GIST SYNC", CurrentValue = false, Flag = "GistSync",
     Callback = function(v)
         SyncEnabled = v
         if v then LoadWordsFromGist() end
     end
 })
+
 TabSettings:CreateDivider()
+
 TabSettings:CreateButton({
-    Name = "❌ Terminate Script",
+    Name = "❌ TERMINATE SCRIPT",
     Callback = function()
         ScriptRunning = false
         Config.AutoType = false
         Config.CopyPaste = false
         Config.TypoFix = false
-        Config.AutoInject = false
-        pcall(function() Window:Destroy() end)
+        pcall(function() Rayfield:Destroy() end)
     end
 })
 
--- Update loop for progress display
-task.spawn(function()
-    while ScriptRunning do
-        UpdateProgressDisplay()
-        task.wait(0.05)
+-- // НАЖАТИЕ КЛАВИШИ RIGHT CONTROL //
+local InputConnection
+InputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not ScriptRunning then
+        InputConnection:Disconnect()
+        return
     end
-end)
-
--- Word change listener
-WordValue.Changed:Connect(function(newWord)
-    if not ScriptRunning then return end
-    LastHandledWord = ""
-    UpdateCurrentWord()
-    if LocalOverrideWord == "" then ForceUpdateGameUI(newWord) end
-    if SyncEnabled and newWord ~= "" then SaveWordToGist(newWord) end
-end)
-UpdateCurrentWord()
-
--- Main automation loop
-task.spawn(function()
-    while ScriptRunning do
-        local textbox = findMyTextbox()
-        local curWord = GetCurrentTargetWord()
-
-        -- Sync game word back if needed
-        if textbox and textbox.Text ~= "" and not Config.TypoFix and LocalOverrideWord == "" then
-            if WordValue.Value ~= textbox.Text then WordValue.Value = textbox.Text end
-        end
-
-        if textbox and not IsBusy and curWord ~= "" and curWord ~= LastHandledWord then
-            if Config.AutoInject and Config.AutoType then
-                LabelStatus:Set("💉 Status: Auto Injecting...")
-                local ok = DoAutoInject(curWord, textbox)
-                if ok then LastHandledWord = curWord end
-                LabelStatus:Set("⚡ Status: Idle")
-            elseif Config.CopyPaste then
-                LabelStatus:Set("📋 Status: Copy Pasting...")
-                local ok = DoCopyPaste(curWord, textbox)
-                if ok then LastHandledWord = curWord end
-                LabelStatus:Set("⚡ Status: Idle")
-            elseif Config.AutoType then
-                if (tick() - LastTypingTime) >= TYPING_COOLDOWN then
-                    LabelStatus:Set("🚀 Status: Auto Typing...")
-                    local ok = DoAutoType(curWord, textbox)
-                    if ok then LastHandledWord = curWord end
-                    LabelStatus:Set("⚡ Status: Idle")
-                end
-            end
-        end
-        task.wait(0.01)
-    end
-end)
-
--- Typo Fixer (keyboard mashing protection)
-task.spawn(function()
-    local lastText = ""
-    while ScriptRunning do
-        if Config.TypoFix and not IsBusy then
-            local textbox = findMyTextbox()
-            local target = GetCurrentTargetWord()
-            if textbox and textbox:IsFocused() and target and target ~= "" then
-                local current = textbox.Text
-                if current ~= lastText then
-                    if #current > 0 then
-                        local correct = target:sub(1, #current)
-                        if current ~= correct then
-                            textbox.Text = correct
-                            textbox.CursorPosition = #correct + 1
-                        end
-                        if #current == #target and current == target and Config.AutoEnter then
-                            if (tick() - LastSubmitTime) > 0.5 then
-                                LastSubmitTime = tick()
-                                textbox:CaptureFocus()
-                                task.wait()
-                                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                                task.wait(0.02)
-                                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                            end
-                        end
-                    end
-                    lastText = textbox.Text
-                end
-            elseif textbox then
-                lastText = textbox.Text
-            end
-        end
-        task.wait()
-    end
-end)
-
--- Right Control shortcut (sends 'a' + Enter)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not ScriptRunning then return end
+    
     if input.KeyCode == Enum.KeyCode.RightControl and not IsBusy then
-        local tb = findMyTextbox()
-        if tb then
-            tb:CaptureFocus()
+        local textbox = findMyTextbox()
+        if textbox then
+            textbox:CaptureFocus()
             task.wait(0.01)
-            tb.Text = "a"
+            textbox.Text = "a"
             task.wait(0.01)
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
             task.wait(0.01)
@@ -624,4 +737,206 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-Rayfield:Notify({Title = "✅ Ready", Content = "All features restored – Auto Inject toggle ready", Duration = 3})
+-- // АБСОЛЮТНЫЙ ПЕРЕХВАТЧИК КЛАВИАТУРЫ (TYPO FIXER) //
+local lastProcessedText = ""
+task.spawn(function()
+    while ScriptRunning do
+        if Config.TypoFix and not IsBusy then
+            local textbox = findMyTextbox()
+            local targetWord = GetCurrentTargetWord()
+            
+            if textbox and textbox:IsFocused() and targetWord and targetWord ~= "" then
+                local currentText = textbox.Text
+                
+                if currentText ~= lastProcessedText then
+                    if #currentText > #lastProcessedText then
+                        local nextLength = math.clamp(#currentText, 1, #targetWord)
+                        local correctSlice = targetWord:sub(1, nextLength)
+                        
+                        if currentText ~= correctSlice then
+                            textbox.Text = correctSlice
+                            textbox.CursorPosition = #correctSlice + 1
+                        end
+
+                        lastProcessedText = correctSlice
+
+                        local fixedText = textbox.Text
+
+                        if Config.AutoEnter
+                        and fixedText == targetWord
+                        and #fixedText == #targetWord
+                        and (tick() - LastSubmitTime) > 0.5 then
+
+                            LastSubmitTime = tick()
+
+                            task.defer(function()
+                                if textbox and textbox.Parent then
+                                    textbox.Text = targetWord
+                                    textbox.CursorPosition = #targetWord + 1
+
+                                    textbox:CaptureFocus()
+
+                                    task.wait()
+
+                                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                                    task.wait(0.02)
+                                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                                end
+                            end)
+                        end
+                    else
+                        lastProcessedText = currentText
+                    end
+                end
+            elseif textbox and not textbox:IsFocused() then
+                lastProcessedText = textbox.Text
+            end
+        end
+        task.wait()
+    end
+end)
+
+-- // МОНИТОРИНГ ИЗМЕНЕНИЙ СЛОВ ИГРЫ //
+local WordValueConnection
+WordValueConnection = WordValue.Changed:Connect(function(newWord)
+    if not ScriptRunning then
+        WordValueConnection:Disconnect()
+        return
+    end
+    
+    LastHandledWord = "" 
+    
+    UpdateCurrentWord()
+    if LocalOverrideWord ~= "" then
+        ForceUpdateGameUI(LocalOverrideWord)
+    else
+        ForceUpdateGameUI(newWord)
+    end
+    if SyncEnabled and newWord ~= "" then
+        SaveWordToGist(newWord)
+    end
+end)
+UpdateCurrentWord()
+
+-- // CHECK IF TEXTBOX IS REALLY VISIBLE //
+local function IsTextboxReady(textbox)
+    if not textbox then
+        return false
+    end
+
+    if not textbox.Parent then
+        return false
+    end
+
+    if not textbox:IsDescendantOf(game) then
+        return false
+    end
+
+    if not textbox.Visible then
+        return false
+    end
+
+    local sg = textbox:FindFirstAncestorOfClass("ScreenGui")
+
+    if not sg or not sg.Enabled then
+        return false
+    end
+
+    if textbox.AbsoluteSize.X < 20 or textbox.AbsoluteSize.Y < 10 then
+        return false
+    end
+
+    return true
+end
+
+-- // WAIT FOR TEXTBOX //
+local function WaitForTextbox(timeout)
+    local start = tick()
+
+    repeat
+        local tb = findMyTextbox()
+
+        if IsTextboxReady(tb) then
+            return tb
+        end
+
+        task.wait(0.05)
+
+    until tick() - start >= (timeout or 3)
+
+    return nil
+end
+
+-- // ГЛАВНЫЙ ПОТОК ОБРАБОТКИ АВТО-МАКРОСОВ //
+task.spawn(function()
+    while ScriptRunning do
+        local textbox = WaitForTextbox(0.2)
+        local curWord = GetCurrentTargetWord()
+
+        -- safe syncing
+        if textbox
+        and IsTextboxReady(textbox)
+        and textbox.Text ~= ""
+        and not Config.TypoFix
+        and LocalOverrideWord == "" then
+
+            if WordValue.Value ~= textbox.Text then
+                WordValue.Value = textbox.Text
+            end
+        end
+
+        -- ONLY RUN IF TEXTBOX IS VISIBLE
+        if textbox
+        and IsTextboxReady(textbox)
+        and not IsBusy
+        and curWord ~= ""
+        and curWord ~= LastHandledWord then
+
+            -- COPYPASTE
+            if Config.CopyPaste then
+
+                if textbox.Visible then
+                    LabelStatus:Set("📋 Status: Copy Pasting...")
+
+                    local success = DoCopyPaste(curWord, textbox)
+
+                    if success then
+                        LastHandledWord = curWord
+                    end
+
+                    LabelStatus:Set("⚡ Status: Idle")
+                end
+
+            -- AUTOTYPE
+            elseif Config.AutoType then
+
+                if (tick() - LastTypingTime) >= TYPING_COOLDOWN then
+
+                    if textbox.Visible then
+                        LabelStatus:Set("🚀 Status: Auto Typing...")
+
+                        local success = DoAutoType(curWord, textbox)
+
+                        if success then
+                            LastHandledWord = curWord
+                        end
+
+                        LabelStatus:Set("⚡ Status: Idle")
+                    end
+                end
+            end
+        end
+
+        task.wait(0.03)
+    end
+end)
+
+-- // ОБНОВЛЕНИЕ СЧЕТЧИКОВ ГРАФИКИ //
+task.spawn(function()
+    while ScriptRunning do
+        UpdateProgressDisplay()
+        task.wait(0.05)
+    end
+end)
+
+Rayfield:LoadConfiguration()

@@ -31,7 +31,7 @@ local Config = {
     AutoType = false,
     CopyPaste = false,
     TypoFix = false,
-    AutoInject = false,   -- НОВЫЙ ТОГГЛ
+    AutoInject = false,   -- новый toggle
     AutoEnter = true,
     CPS = 16,
     CopyPasteDelay = 0.0
@@ -377,7 +377,7 @@ local function DoCopyPaste(word, textbox)
     return true
 end
 
--- // НОВАЯ ФУНКЦИЯ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (letter‑by‑letter) //
+-- // НОВАЯ ФУНКЦИЯ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (letter‑by‑letter, уважает CPS) //
 local function DoAutoInject(word, textbox)
     if IsBusy then return false end
     if not Config.AutoInject or not Config.AutoType then return false end
@@ -465,9 +465,7 @@ TabHome:CreateButton({
     end
 })
 
-TabHome:CreateDivider()
-
--- НОВЫЙ ТОГГЛ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (без кнопки ручного инжекта)
+-- НОВЫЙ ТОГГЛ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (вместо кнопки)
 TabHome:CreateToggle({
     Name = "⚡ AUTO INJECT (letter‑by‑letter when word changes)",
     CurrentValue = false,
@@ -475,6 +473,7 @@ TabHome:CreateToggle({
     Callback = function(v)
         Config.AutoInject = v
         if v then
+            -- Auto Type must be ON for injection
             if not Config.AutoType then
                 Config.AutoType = true
                 Config.CopyPaste = false
@@ -484,10 +483,12 @@ TabHome:CreateToggle({
                 Config.CopyPaste = false
                 Config.TypoFix = false
             end
-            LastHandledWord = ""
+            LastHandledWord = "" -- force trigger on next word
         end
     end
 })
+
+TabHome:CreateDivider()
 
 TabHome:CreateToggle({
     Name = "🤖 AUTO TYPE (presses Enter)",
@@ -758,6 +759,7 @@ task.spawn(function()
         end
         
         if textbox and not IsBusy and curWord ~= "" and curWord ~= LastHandledWord then
+            -- Новый приоритет: Auto Inject
             if Config.AutoInject and Config.AutoType then
                 LabelStatus:Set("💉 Status: Auto Injecting...")
                 local success = DoAutoInject(curWord, textbox)

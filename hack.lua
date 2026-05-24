@@ -31,7 +31,7 @@ local Config = {
     AutoType = false,
     CopyPaste = false,
     TypoFix = false,
-    AutoInject = false,   -- NEW
+    AutoInject = false,   -- НОВЫЙ ТОГГЛ
     AutoEnter = true,
     CPS = 16,
     CopyPasteDelay = 0.0
@@ -158,7 +158,7 @@ local function ForceUpdateGameUI(newWord)
     end
 end
 
--- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ (ДЛЯ ОБЫЧНОГО AUTO TYPE) //
+-- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ //
 local function TypeWord(textbox, word, cps, pressEnter, modeName)
     if not textbox or not word or word == "" then
         return false
@@ -377,7 +377,7 @@ local function DoCopyPaste(word, textbox)
     return true
 end
 
--- // НОВАЯ ФУНКЦИЯ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (letter‑by‑letter, уважает CPS) //
+-- // НОВАЯ ФУНКЦИЯ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (letter‑by‑letter) //
 local function DoAutoInject(word, textbox)
     if IsBusy then return false end
     if not Config.AutoInject or not Config.AutoType then return false end
@@ -467,7 +467,7 @@ TabHome:CreateButton({
 
 TabHome:CreateDivider()
 
--- NEW AUTO INJECT TOGGLE (no manual inject button)
+-- НОВЫЙ ТОГГЛ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (без кнопки ручного инжекта)
 TabHome:CreateToggle({
     Name = "⚡ AUTO INJECT (letter‑by‑letter when word changes)",
     CurrentValue = false,
@@ -475,10 +475,8 @@ TabHome:CreateToggle({
     Callback = function(v)
         Config.AutoInject = v
         if v then
-            -- Auto Type must be ON for injection
             if not Config.AutoType then
                 Config.AutoType = true
-                -- Also turn off conflicting modes
                 Config.CopyPaste = false
                 Config.TypoFix = false
                 Rayfield:Notify({Title = "Auto Inject", Content = "Enabled. Auto Type turned ON.", Duration = 2})
@@ -486,7 +484,7 @@ TabHome:CreateToggle({
                 Config.CopyPaste = false
                 Config.TypoFix = false
             end
-            LastHandledWord = "" -- force trigger on next word
+            LastHandledWord = ""
         end
     end
 })
@@ -760,7 +758,6 @@ task.spawn(function()
         end
         
         if textbox and not IsBusy and curWord ~= "" and curWord ~= LastHandledWord then
-            -- NEW: Auto Inject takes priority if enabled
             if Config.AutoInject and Config.AutoType then
                 LabelStatus:Set("💉 Status: Auto Injecting...")
                 local success = DoAutoInject(curWord, textbox)

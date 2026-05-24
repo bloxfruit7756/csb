@@ -1,4 +1,3 @@
--- Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -377,7 +376,7 @@ local function DoCopyPaste(word, textbox)
     return true
 end
 
--- // НОВАЯ ФУНКЦИЯ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (letter‑by‑letter, уважает CPS) //
+-- // НОВАЯ ФУНКЦИЯ ДЛЯ АВТО-ИНЖЕКТА //
 local function DoAutoInject(word, textbox)
     if IsBusy then return false end
     if not Config.AutoInject or not Config.AutoType then return false end
@@ -465,7 +464,7 @@ TabHome:CreateButton({
     end
 })
 
--- НОВЫЙ ТОГГЛ: АВТОМАТИЧЕСКИЙ ИНЖЕКТ (вместо кнопки)
+-- НОВЫЙ ТОГГЛ ВМЕСТО КНОПКИ
 TabHome:CreateToggle({
     Name = "⚡ AUTO INJECT (letter‑by‑letter when word changes)",
     CurrentValue = false,
@@ -473,7 +472,6 @@ TabHome:CreateToggle({
     Callback = function(v)
         Config.AutoInject = v
         if v then
-            -- Auto Type must be ON for injection
             if not Config.AutoType then
                 Config.AutoType = true
                 Config.CopyPaste = false
@@ -483,7 +481,7 @@ TabHome:CreateToggle({
                 Config.CopyPaste = false
                 Config.TypoFix = false
             end
-            LastHandledWord = "" -- force trigger on next word
+            LastHandledWord = ""
         end
     end
 })
@@ -795,3 +793,5 @@ task.spawn(function()
 end)
 
 Rayfield:LoadConfiguration()
+
+print("Script fully loaded - Rayfield UI should now appear.")

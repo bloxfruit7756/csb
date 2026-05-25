@@ -1,4 +1,4 @@
- -- Load Rayfield
+-- Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -25,6 +25,7 @@ local LastTypingTime = 0
 local TYPING_COOLDOWN = 1.7
 local ScriptRunning = true
 local LastSubmitTime = 0
+local CurrentTypingId = ""
 
 -- // НАСТРОЙКИ //
 local Config = {
@@ -42,6 +43,16 @@ local Stats = {
     Pasted = 0,
     Total = 0
 }
+
+-- Определение функции до её вызова в методах
+local function RefreshStats()
+    if not ScriptRunning then return end
+    if S1 and S2 and S3 then
+        S1:Set("🤖 Auto-Typed: " .. Stats.Typed)
+        S2:Set("📋 Copied & Pasted: " .. Stats.Pasted)
+        S3:Set("📊 Total Processed: " .. Stats.Total)
+    end
+end
 
 -- // НАХОДИМ СЕТЕВУЮ ПЕРЕМЕННУЮ //
 local WordValue = nil
@@ -132,16 +143,14 @@ local function findMyTextbox()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return nil end
 
-    -- Exact, hard‑coded path you provided
-    local textboxContainer = pg:FindFirstChild("Textbox")    -- the ScreenGui named "Textbox"
+    local textboxContainer = pg:FindFirstChild("Textbox")    -- ScreenGui "Textbox"
     if textboxContainer then
-        local tb = textboxContainer:FindFirstChild("TextBox")  -- the actual TextBox inside it
+        local tb = textboxContainer:FindFirstChild("TextBox")  -- TextBox inside
         if tb and tb:IsA("TextBox") and tb.Visible then
             return tb
         end
     end
 
-    -- Optional: manual path (if you ever need it)
     if CustomTextBoxPath and CustomTextBoxPath ~= "" then
         local target = pg
         for _, part in ipairs(CustomTextBoxPath:split("/")) do
@@ -154,7 +163,6 @@ local function findMyTextbox()
         end
     end
 
-    -- No fallback – never risk hitting the chat
     return nil
 end
 
@@ -259,11 +267,9 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         local expected = word:sub(1, i)
 
         RepairText(expected)
-
         ForceText(expected)
 
         lastGoodText = expected
-
         CurrentTypingProgress.current = i
 
         local started = tick()
@@ -274,7 +280,6 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
             end
 
             RepairText(expected)
-
             task.wait()
         end
 
@@ -289,39 +294,26 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         i += 1
     end
 
+    -- На всякий случай проверяем валидность перед финальной обработкой
+    if not IsValid() then return false end
+
     ForceText(word)
-
     task.wait()
-
     ForceText(word)
 
     if pressEnter and Config.AutoEnter and IsValid() then
         textbox:CaptureFocus()
-
         task.wait()
 
-        VirtualInputManager:SendKeyEvent(
-            true,
-            Enum.KeyCode.Return,
-            false,
-            game
-        )
-
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
         task.wait(0.015)
-
-        VirtualInputManager:SendKeyEvent(
-            false,
-            Enum.KeyCode.Return,
-            false,
-            game
-        )
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
 
         task.delay(0.03, function()
             if textbox
             and textbox.Parent
             and textbox.Text ~= ""
             and textbox.Text ~= word then
-
                 textbox.Text = ""
                 textbox.CursorPosition = 1
             end
@@ -329,7 +321,6 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
     end
 
     CurrentTypingProgress.current = #word
-
     return true
 end
 
@@ -391,7 +382,7 @@ local function DoCopyPaste(word, textbox)
     return true
 end
 
--- // НОВАЯ ФУНКЦИЯ: ИНЖЕКТ ПОБУКВЕННО (letter‑by‑letter, уважает CPS) //
+-- // ИНЖЕКТ ПОБУКВЕННО (FIXED MID-WAY CANCEL) //
 local function InjectLetterByLetter()
     if not Config.AutoType then
         Rayfield:Notify({
@@ -434,16 +425,17 @@ local function InjectLetterByLetter()
     IsBusy = true
     textbox:CaptureFocus()
     
-    -- Очищаем текстовое поле перед началом
     textbox.Text = ""
     task.wait(0.05)
     
     local delay = 1 / Config.CPS
     local typed = ""
+    local cancelled = false
     
     for i = 1, #word do
-        if not Config.AutoType then
-            -- Если пользователь выключил авто-тип во время инжекта, останавливаемся
+        -- FIX: If configuration drops, completely flag execution as failed/cancelled
+        if not Config.AutoType or not ScriptRunning then
+            cancelled = true
             break
         end
         typed = typed .. string.sub(word, i, i)
@@ -454,29 +446,34 @@ local function InjectLetterByLetter()
         end
     end
     
-    -- Если слово напечатано полностью и AutoEnter включён, нажимаем Enter
-    if typed == word and Config.AutoEnter and Config.AutoType then
+    -- FIX: Enter is now strictly locked out unless the entire sequence finalized successfully
+    if not cancelled and typed == word and Config.AutoEnter and Config.AutoType then
         task.wait(0.05)
         textbox:CaptureFocus()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
         task.wait(0.02)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+        
+        Stats.Pasted = Stats.Pasted + 1
+        Stats.Total = Stats.Total + 1
+        RefreshStats()
+        LastTypingTime = tick()
+        
+        Rayfield:Notify({
+            Title = "Inject completed",
+            Content = string.format("Typed \"%s\" at %d CPS", word, Config.CPS),
+            Duration = 1.5
+        })
+    else
+        Rayfield:Notify({
+            Title = "Inject stopped",
+            Content = "Process cut short. Submission aborted.",
+            Duration = 1.5
+        })
     end
     
-    -- Обновляем статистику (как "Pasted" или отдельный счётчик)
-    Stats.Pasted = Stats.Pasted + 1
-    Stats.Total = Stats.Total + 1
-    RefreshStats()
-    
-    LastTypingTime = tick()
     IsBusy = false
-    
-    Rayfield:Notify({
-        Title = "Inject completed",
-        Content = string.format("Typed \"%s\" at %d CPS", word, Config.CPS),
-        Duration = 1.5
-    })
-    return true
+    return not cancelled
 end
 
 -- // ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА //
@@ -530,8 +527,6 @@ TabHome:CreateButton({
     end
 })
 
--- ============ MODIFIED: Inject Toggle instead of Button ============
--- Сохраняем объект AutoType toggle, чтобы управлять им бесшумно
 local AutoTypeToggle = TabHome:CreateToggle({
     Name = "🤖 AUTO TYPE (presses Enter)",
     CurrentValue = false,
@@ -550,7 +545,6 @@ local AutoTypeToggle = TabHome:CreateToggle({
     end
 })
 
--- Вспомогательная функция для бесшумного включения/выключения AutoType
 local function SetAutoTypeSilently(value)
     if value then
         Config.AutoType = true
@@ -563,24 +557,23 @@ local function SetAutoTypeSilently(value)
         CurrentTypingProgress = {current = 0, total = 0, startTime = 0}
         LabelStatus:Set("⚡ Status: Idle")
     end
-    AutoTypeToggle:Set(value)  -- обновляем UI без вызова callback
+    AutoTypeToggle:Set(value)
 end
 
--- Новый тоггл "Inject", который автоматически включает AutoType
+-- Тоггл "Inject"
 TabHome:CreateToggle({
     Name = "🔁 Inject (auto-enables AutoType)",
     CurrentValue = false,
     Flag = "InjectToggle",
     Callback = function(v)
         if v then
-            SetAutoTypeSilently(true)   -- включаем AutoType и отключаем конфликтующие режимы
-            InjectLetterByLetter()      -- сразу инжектим текущее слово
+            SetAutoTypeSilently(true)
+            InjectLetterByLetter()
         else
-            SetAutoTypeSilently(false)  -- выключаем AutoType
+            SetAutoTypeSilently(false)
         end
     end
 })
--- ===============================================================
 
 TabHome:CreateDivider()
 
@@ -651,16 +644,9 @@ TabWords:CreateButton({
 })
 
 -- ЭЛЕМЕНТЫ STATISTICS TAB
-local S1 = TabStats:CreateLabel("🤖 Auto-Typed: 0")
-local S2 = TabStats:CreateLabel("📋 Copied & Pasted: 0")
-local S3 = TabStats:CreateLabel("📊 Total Processed: 0")
-
-function RefreshStats()
-    if not ScriptRunning then return end
-    S1:Set("🤖 Auto-Typed: " .. Stats.Typed)
-    S2:Set("📋 Copied & Pasted: " .. Stats.Pasted)
-    S3:Set("📊 Total Processed: " .. Stats.Total)
-end
+S1 = TabStats:CreateLabel("🤖 Auto-Typed: 0")
+S2 = TabStats:CreateLabel("📋 Copied & Pasted: 0")
+S3 = TabStats:CreateLabel("📊 Total Processed: 0")
 
 TabStats:CreateButton({
     Name = "🔄 Reset Statistics",
@@ -775,7 +761,6 @@ task.spawn(function()
                                     textbox.CursorPosition = #targetWord + 1
 
                                     textbox:CaptureFocus()
-
                                     task.wait()
 
                                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
@@ -820,31 +805,14 @@ UpdateCurrentWord()
 
 -- // CHECK IF TEXTBOX IS REALLY VISIBLE //
 local function IsTextboxReady(textbox)
-    if not textbox then
-        return false
-    end
-
-    if not textbox.Parent then
-        return false
-    end
-
-    if not textbox:IsDescendantOf(game) then
-        return false
-    end
-
-    if not textbox.Visible then
-        return false
-    end
+    if not textbox then return false end
+    if not textbox.Parent then return false end
+    if not textbox:IsDescendantOf(game) then return false end
+    if not textbox.Visible then return false end
 
     local sg = textbox:FindFirstAncestorOfClass("ScreenGui")
-
-    if not sg or not sg.Enabled then
-        return false
-    end
-
-    if textbox.AbsoluteSize.X < 20 or textbox.AbsoluteSize.Y < 10 then
-        return false
-    end
+    if not sg or not sg.Enabled then return false end
+    if textbox.AbsoluteSize.X < 20 or textbox.AbsoluteSize.Y < 10 then return false end
 
     return true
 end
@@ -852,18 +820,11 @@ end
 -- // WAIT FOR TEXTBOX //
 local function WaitForTextbox(timeout)
     local start = tick()
-
     repeat
         local tb = findMyTextbox()
-
-        if IsTextboxReady(tb) then
-            return tb
-        end
-
+        if IsTextboxReady(tb) then return tb end
         task.wait(0.05)
-
     until tick() - start >= (timeout or 3)
-
     return nil
 end
 
@@ -873,19 +834,16 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- safe syncing
         if textbox
         and IsTextboxReady(textbox)
         and textbox.Text ~= ""
         and not Config.TypoFix
         and LocalOverrideWord == "" then
-
             if WordValue.Value ~= textbox.Text then
                 WordValue.Value = textbox.Text
             end
         end
 
-        -- ONLY RUN IF TEXTBOX IS VISIBLE
         if textbox
         and IsTextboxReady(textbox)
         and not IsBusy
@@ -894,39 +852,25 @@ task.spawn(function()
 
             -- COPYPASTE
             if Config.CopyPaste then
-
                 if textbox.Visible then
                     LabelStatus:Set("📋 Status: Copy Pasting...")
-
                     local success = DoCopyPaste(curWord, textbox)
-
-                    if success then
-                        LastHandledWord = curWord
-                    end
-
+                    if success then LastHandledWord = curWord end
                     LabelStatus:Set("⚡ Status: Idle")
                 end
 
             -- AUTOTYPE
             elseif Config.AutoType then
-
                 if (tick() - LastTypingTime) >= TYPING_COOLDOWN then
-
                     if textbox.Visible then
                         LabelStatus:Set("🚀 Status: Auto Typing...")
-
                         local success = DoAutoType(curWord, textbox)
-
-                        if success then
-                            LastHandledWord = curWord
-                        end
-
+                        if success then LastHandledWord = curWord end
                         LabelStatus:Set("⚡ Status: Idle")
                     end
                 end
             end
         end
-
         task.wait(0.03)
     end
 end)
@@ -939,4 +883,5 @@ task.spawn(function()
     end
 end)
 
+RefreshStats()
 Rayfield:LoadConfiguration()

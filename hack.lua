@@ -27,12 +27,17 @@ local ScriptRunning = true
 local LastSubmitTime = 0
 local CurrentTypingId = ""
 
+-- Флаги предотвращения спама при обычной печати / Typo Fixer
+local LastCopiedWord = ""
+local LastChattedWord = ""
+
 -- // НАСТРОЙКИ //
 local Config = {
     AutoType = false,
     CopyPaste = false,
     TypoFix = false,
-    AutoCopy = false, -- New Setting
+    AutoCopy = false,
+    AutoChat = false,
     AutoEnter = true,
     CPS = 16,
     CopyPasteDelay = 0.0
@@ -75,12 +80,43 @@ local function GetCurrentTargetWord()
     return WordValue.Value
 end
 
--- Вспомогательная функция автокопирования
+-- Вспомогательная функция автокопирования (с защитой от повторов)
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        if target and target ~= "" then
+        if target and target ~= "" and target ~= LastCopiedWord then
+            LastCopiedWord = target
             setclipboard(target)
+        end
+    end
+end
+
+-- Вспомогательная функция отправки в чат (с защитой от повторов)
+local function HandleAutoChat()
+    if Config.AutoChat then
+        local target = GetCurrentTargetWord()
+        if target and target ~= "" and target ~= LastChattedWord then
+            LastChattedWord = target
+            local formattedMessage = "Word : " .. target
+            
+            -- Попытка отправить через TextChannels (Новая система чата Roblox)
+            local TextChatService = game:GetService("TextChatService")
+            if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+                local generalChannel = TextChatService:FindFirstChild("RBXGeneral", true)
+                if generalChannel and generalChannel:IsA("TextChannel") then
+                    generalChannel:SendAsync(formattedMessage)
+                    return
+                end
+            end
+            
+            -- Попытка отправить через старую систему чата (Legacy Chat)
+            local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            if chatEvents then
+                local sayMessage = chatEvents:FindFirstChild("SayMessageRequest")
+                if sayMessage and sayMessage:IsA("RemoteEvent") then
+                    sayMessage:FireServer(formattedMessage, "All")
+                end
+            end
         end
     end
 end
@@ -616,7 +652,6 @@ TabHome:CreateToggle({
     end
 })
 
--- ============ ADDED: AUTO COPY TOGGLE RIGHT UNDER TYPO FIXER ============
 TabHome:CreateToggle({
     Name = "📋 AUTO COPY (Automatically Copies Current Word)",
     CurrentValue = false,
@@ -628,7 +663,18 @@ TabHome:CreateToggle({
         end
     end
 })
--- ========================================================================
+
+TabHome:CreateToggle({
+    Name = "💬 AUTO CHAT (Sends 'Word : [word]' to Chat)",
+    CurrentValue = false,
+    Flag = "ACHAT",
+    Callback = function(v)
+        Config.AutoChat = v
+        if v then
+            HandleAutoChat()
+        end
+    end
+})
 
 TabHome:CreateToggle({
     Name = "↩️ AUTO ENTER (Submits Answer)",
@@ -651,7 +697,8 @@ TabWords:CreateInput({
             LocalOverrideWord = tostring(v)
             LastHandledWord = ""
             UpdateCurrentWord()
-            HandleAutoCopy() -- Run automatic copy if enabled
+            HandleAutoCopy()
+            HandleAutoChat()
             ForceUpdateGameUI(LocalOverrideWord)
         end
     end
@@ -663,7 +710,8 @@ TabWords:CreateButton({
         LocalOverrideWord = ""
         LastHandledWord = ""
         UpdateCurrentWord()
-        HandleAutoCopy() -- Run automatic copy if enabled
+        HandleAutoCopy()
+        HandleAutoChat()
     end
 })
 
@@ -722,6 +770,7 @@ TabSettings:CreateButton({
         Config.CopyPaste = false
         Config.TypoFix = false
         Config.AutoCopy = false
+        Config.AutoChat = false
         pcall(function() Rayfield:Destroy() end)
     end
 })
@@ -749,6 +798,9 @@ InputConnection = UserInputService.InputBegan:Connect(function(input, gameProces
 end)
 
 -- // АБСОЛЮТНЫЙ ПЕРЕХВАТЧИК КЛАВИАТУРЫ (TYPO FIXER) //
+local lastProcessedText = ""
+local targetSyncLock = false -- Защищает от перезаписи WordValue во время набора
+
 local lastProcessedText = ""
 task.spawn(function()
     while ScriptRunning do
@@ -817,7 +869,8 @@ WordValueConnection = WordValue.Changed:Connect(function(newWord)
     LastHandledWord = "" 
     
     UpdateCurrentWord()
-    HandleAutoCopy() -- Automatically runs copy check when game triggers a new word change
+    HandleAutoCopy()
+    HandleAutoChat()
     
     if LocalOverrideWord ~= "" then
         ForceUpdateGameUI(LocalOverrideWord)
@@ -861,6 +914,7 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
+        -- Защита: Если включен TypoFixer, не позволяем текстовому полю перезаписывать основное значение раунда
         if textbox
         and IsTextboxReady(textbox)
         and textbox.Text ~= ""

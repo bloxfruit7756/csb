@@ -32,6 +32,7 @@ local Config = {
     AutoType = false,
     CopyPaste = false,
     TypoFix = false,
+    AutoCopy = false, -- New Setting
     AutoEnter = true,
     CPS = 16,
     CopyPasteDelay = 0.0
@@ -72,6 +73,16 @@ end
 local function GetCurrentTargetWord()
     if LocalOverrideWord ~= "" then return LocalOverrideWord end
     return WordValue.Value
+end
+
+-- Вспомогательная функция автокопирования
+local function HandleAutoCopy()
+    if Config.AutoCopy then
+        local target = GetCurrentTargetWord()
+        if target and target ~= "" then
+            setclipboard(target)
+        end
+    end
 end
 
 -- // ФУНКЦИИ СИНХРОНИЗАЦИИ GITHUB //
@@ -143,9 +154,9 @@ local function findMyTextbox()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return nil end
 
-    local textboxContainer = pg:FindFirstChild("Textbox")    -- ScreenGui "Textbox"
+    local textboxContainer = pg:FindFirstChild("Textbox")
     if textboxContainer then
-        local tb = textboxContainer:FindFirstChild("TextBox")  -- TextBox inside
+        local tb = textboxContainer:FindFirstChild("TextBox")
         if tb and tb:IsA("TextBox") and tb.Visible then
             return tb
         end
@@ -294,7 +305,6 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         i += 1
     end
 
-    -- На всякий случай проверяем валидность перед финальной обработкой
     if not IsValid() then return false end
 
     ForceText(word)
@@ -382,7 +392,7 @@ local function DoCopyPaste(word, textbox)
     return true
 end
 
--- // ИНЖЕКТ ПОБУКВЕННО (FIXED MID-WAY CANCEL) //
+-- // ИНЖЕКТ ПОБУКВЕННО //
 local function InjectLetterByLetter()
     if not Config.AutoType then
         Rayfield:Notify({
@@ -433,7 +443,6 @@ local function InjectLetterByLetter()
     local cancelled = false
     
     for i = 1, #word do
-        -- FIX: If configuration drops, completely flag execution as failed/cancelled
         if not Config.AutoType or not ScriptRunning then
             cancelled = true
             break
@@ -446,7 +455,6 @@ local function InjectLetterByLetter()
         end
     end
     
-    -- FIX: Enter is now strictly locked out unless the entire sequence finalized successfully
     if not cancelled and typed == word and Config.AutoEnter and Config.AutoType then
         task.wait(0.05)
         textbox:CaptureFocus()
@@ -608,6 +616,20 @@ TabHome:CreateToggle({
     end
 })
 
+-- ============ ADDED: AUTO COPY TOGGLE RIGHT UNDER TYPO FIXER ============
+TabHome:CreateToggle({
+    Name = "📋 AUTO COPY (Automatically Copies Current Word)",
+    CurrentValue = false,
+    Flag = "AC",
+    Callback = function(v)
+        Config.AutoCopy = v
+        if v then
+            HandleAutoCopy()
+        end
+    end
+})
+-- ========================================================================
+
 TabHome:CreateToggle({
     Name = "↩️ AUTO ENTER (Submits Answer)",
     CurrentValue = true,
@@ -629,6 +651,7 @@ TabWords:CreateInput({
             LocalOverrideWord = tostring(v)
             LastHandledWord = ""
             UpdateCurrentWord()
+            HandleAutoCopy() -- Run automatic copy if enabled
             ForceUpdateGameUI(LocalOverrideWord)
         end
     end
@@ -640,6 +663,7 @@ TabWords:CreateButton({
         LocalOverrideWord = ""
         LastHandledWord = ""
         UpdateCurrentWord()
+        HandleAutoCopy() -- Run automatic copy if enabled
     end
 })
 
@@ -697,6 +721,7 @@ TabSettings:CreateButton({
         Config.AutoType = false
         Config.CopyPaste = false
         Config.TypoFix = false
+        Config.AutoCopy = false
         pcall(function() Rayfield:Destroy() end)
     end
 })
@@ -792,6 +817,8 @@ WordValueConnection = WordValue.Changed:Connect(function(newWord)
     LastHandledWord = "" 
     
     UpdateCurrentWord()
+    HandleAutoCopy() -- Automatically runs copy check when game triggers a new word change
+    
     if LocalOverrideWord ~= "" then
         ForceUpdateGameUI(LocalOverrideWord)
     else

@@ -27,7 +27,7 @@ local ScriptRunning = true
 local LastSubmitTime = 0
 local CurrentTypingId = ""
 
--- Флаги предотвращения спама при обычной печати / Typo Fixer
+-- Флаги предотвращения спама при обычной печати / Typo Fixer / Hotkey overrides
 local LastCopiedWord = ""
 local LastChattedWord = ""
 
@@ -80,26 +80,27 @@ local function GetCurrentTargetWord()
     return WordValue.Value
 end
 
--- Вспомогательная функция автокопирования (с защитой от повторов)
+-- Вспомогательная функция автокопирования
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        if target and target ~= "" and target ~= LastCopiedWord then
+        -- ЗАЩИТА: Строго игнорируем одиночные буквы или пустые строки от макросов
+        if target and #target > 1 and target ~= LastCopiedWord then
             LastCopiedWord = target
             setclipboard(target)
         end
     end
 end
 
--- Вспомогательная функция отправки в чат (с защитой от повторов)
+-- Вспомогательная функция отправки в чат
 local function HandleAutoChat()
     if Config.AutoChat then
         local target = GetCurrentTargetWord()
-        if target and target ~= "" and target ~= LastChattedWord then
+        -- ЗАЩИТА: Строго блокируем отправку коротких букв-заглушек в чат
+        if target and #target > 1 and target ~= LastChattedWord then
             LastChattedWord = target
             local formattedMessage = "Word : " .. target
             
-            -- Попытка отправить через TextChannels (Новая система чата Roblox)
             local TextChatService = game:GetService("TextChatService")
             if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
                 local generalChannel = TextChatService:FindFirstChild("RBXGeneral", true)
@@ -109,7 +110,6 @@ local function HandleAutoChat()
                 end
             end
             
-            -- Попытка отправить через старую систему чата (Legacy Chat)
             local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
             if chatEvents then
                 local sayMessage = chatEvents:FindFirstChild("SayMessageRequest")
@@ -149,7 +149,7 @@ local function LoadWordsFromGist()
 end
 
 local function SaveWordToGist(word)
-    if not SyncEnabled or word == "" then return end
+    if not SyncEnabled or word == "" or #word <= 1 then return end
     
     for _, w in ipairs(SyncedWords) do
         if w == word then return end
@@ -215,7 +215,7 @@ end
 
 -- // ЛОКАЛЬНАЯ СИМУЛЯЦИЯ ИЗМЕНЕНИЯ ИНТЕРФЕЙСА ИГРЫ //
 local function ForceUpdateGameUI(newWord)
-    if newWord == "" then return end
+    if newWord == "" or #newWord <= 1 then return end
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return end
     for _, obj in ipairs(pg:GetDescendants()) do
@@ -799,9 +799,6 @@ end)
 
 -- // АБСОЛЮТНЫЙ ПЕРЕХВАТЧИК КЛАВИАТУРЫ (TYPO FIXER) //
 local lastProcessedText = ""
-local targetSyncLock = false -- Защищает от перезаписи WordValue во время набора
-
-local lastProcessedText = ""
 task.spawn(function()
     while ScriptRunning do
         if Config.TypoFix and not IsBusy then
@@ -914,14 +911,23 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- Защита: Если включен TypoFixer, не позволяем текстовому полю перезаписывать основное значение раунда
+        -- ИСПРАВЛЕНО: Полностью переписана логика проверки ввода.
+        -- Если текст в окне НЕ является частью реального целевого слова, мы классифицируем это 
+        -- как спам/макрос и запрещаем перезапись сетевой переменной WordValue.
         if textbox
         and IsTextboxReady(textbox)
         and textbox.Text ~= ""
-        and not Config.TypoFix
         and LocalOverrideWord == "" then
-            if WordValue.Value ~= textbox.Text then
-                WordValue.Value = textbox.Text
+            
+            local currentText = textbox.Text
+            -- Если набранный текст совпадает со стартом целевого слова, значит это легитимный набор.
+            -- В противном случае (если это макрос или спам вроде "gdahsgdsajg..."), мы его блокируем.
+            local isLegitTyping = (curWord ~= "" and curWord:sub(1, #currentText) == currentText)
+            
+            if isLegitTyping and not Config.TypoFix and #currentText > 1 then
+                if WordValue.Value ~= currentText then
+                    WordValue.Value = currentText
+                end
             end
         end
 

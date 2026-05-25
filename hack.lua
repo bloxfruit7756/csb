@@ -1,4 +1,4 @@
- -- Load Rayfield
+-- Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -172,226 +172,117 @@ local function ForceUpdateGameUI(newWord)
     end
 end
 
--- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ //
-local function TypeWord(textbox, word, cps, pressEnter, modeName)
-    if not textbox or not word or word == "" then
-        return false
-    end
-
-    local delay = math.max(1 / cps, 0.001)
-
-    local typingId = tostring(tick()) .. tostring(math.random(1000,9999))
-    CurrentTypingId = typingId
-
-    CurrentTypingProgress.current = 0
-    CurrentTypingProgress.total = #word
-    CurrentTypingProgress.startTime = tick()
-
-    local lastGoodText = ""
-    local lastRepair = 0
-    local repairCooldown = 0.015
-
-    textbox:CaptureFocus()
-
-    local function IsValid()
-        return ScriptRunning
-        and textbox
-        and textbox.Parent
-        and isRealTurnTextbox(textbox)
-        and GetCurrentTargetWord() == word
-        and CurrentTypingId == typingId
-        and (
-            (modeName == "AutoType" and Config.AutoType)
-            or
-            (modeName == "CopyPaste" and Config.CopyPaste)
-        )
-    end
-
-    local function ForceText(text)
-        if textbox.Text ~= text then
-            textbox.Text = text
-        end
-
-        local desiredCursor = #text + 1
-
-        if textbox.CursorPosition ~= desiredCursor then
-            textbox.CursorPosition = desiredCursor
-        end
-    end
-
-    local function RepairText(expected)
-        local now = tick()
-
-        if now - lastRepair < repairCooldown then
-            return
-        end
-
-        lastRepair = now
-
-        local current = textbox.Text
-
-        if current == expected then
-            return
-        end
-
-        if #current > #expected then
-            ForceText(expected)
-            return
-        end
-
-        if #current > 0 and word:sub(1, #current) == current then
-            lastGoodText = current
-            return
-        end
-
-        ForceText(expected)
-    end
-
-    ForceText("")
-
-    local i = 1
-
-    while i <= #word do
-        if not IsValid() then
-            return false
-        end
-
-        local expected = word:sub(1, i)
-
-        RepairText(expected)
-
-        ForceText(expected)
-
-        lastGoodText = expected
-
-        CurrentTypingProgress.current = i
-
-        local started = tick()
-
-        while tick() - started < delay do
-            if not IsValid() then
-                return false
-            end
-
-            RepairText(expected)
-
-            task.wait()
-        end
-
-        local current = textbox.Text
-
-        if current ~= expected then
-            if #current > 0 and word:sub(1, #current) == current then
-                i = #current
-            end
-        end
-
-        i += 1
-    end
-
-    ForceText(word)
-
-    task.wait()
-
-    ForceText(word)
-
-    if pressEnter and Config.AutoEnter and IsValid() then
-        textbox:CaptureFocus()
-
-        task.wait()
-
-        VirtualInputManager:SendKeyEvent(
-            true,
-            Enum.KeyCode.Return,
-            false,
-            game
-        )
-
-        task.wait(0.015)
-
-        VirtualInputManager:SendKeyEvent(
-            false,
-            Enum.KeyCode.Return,
-            false,
-            game
-        )
-
-        task.delay(0.03, function()
-            if textbox
-            and textbox.Parent
-            and textbox.Text ~= ""
-            and textbox.Text ~= word then
-
-                textbox.Text = ""
-                textbox.CursorPosition = 1
-            end
-        end)
-    end
-
-    CurrentTypingProgress.current = #word
-
-    return true
+-- // KEY MAPPER FOR CHARACTERS (A-Z) //
+local function GetKeyCodeFromChar(char)
+    local upper = string.upper(char)
+    local validKeys = {
+        ["A"] = Enum.KeyCode.A, ["B"] = Enum.KeyCode.B, ["C"] = Enum.KeyCode.C,
+        ["D"] = Enum.KeyCode.D, ["E"] = Enum.KeyCode.E, ["F"] = Enum.KeyCode.F,
+        ["G"] = Enum.KeyCode.G, ["H"] = Enum.KeyCode.H, ["I"] = Enum.KeyCode.I,
+        ["J"] = Enum.KeyCode.J, ["K"] = Enum.KeyCode.K, ["L"] = Enum.KeyCode.L,
+        ["M"] = Enum.KeyCode.M, ["N"] = Enum.KeyCode.N, ["O"] = Enum.KeyCode.O,
+        ["P"] = Enum.KeyCode.P, ["Q"] = Enum.KeyCode.Q, ["R"] = Enum.KeyCode.R,
+        ["S"] = Enum.KeyCode.S, ["T"] = Enum.KeyCode.T, ["U"] = Enum.KeyCode.U,
+        ["V"] = Enum.KeyCode.V, ["W"] = Enum.KeyCode.W, ["X"] = Enum.KeyCode.X,
+        ["Y"] = Enum.KeyCode.Y, ["Z"] = Enum.KeyCode.Z
+    }
+    return validKeys[upper]
 end
 
--- // ВЫПОЛНЕНИЕ АВТОВВОДА //
+-- // NEW: TYPE CHARACTER USING KEYPRESS ONLY //
+local function TypeChar(char, delay)
+    local key = GetKeyCodeFromChar(char)
+    if not key then return end
+    VirtualInputManager:SendKeyEvent(true, key, false, game)
+    task.wait(0.005 + math.random() * 0.01)
+    VirtualInputManager:SendKeyEvent(false, key, false, game)
+    if delay then task.wait(delay + (math.random() - 0.5) * 0.01) end
+end
+
+-- // NEW: CLEAR TEXTBOX USING BACKSPACES //
+local function ClearTextboxWithBackspaces(textbox)
+    if not textbox then return end
+    textbox:CaptureFocus()
+    local len = #textbox.Text
+    if len == 0 then return end
+    for i = 1, len do
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game)
+        task.wait(0.01)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game)
+        task.wait(0.005 + math.random() * 0.01)
+    end
+end
+
+-- // ФУНКЦИЯ ПОЭЛЕМЕНТНОЙ ПЕЧАТИ (OLD - KEPT FOR COMPATIBILITY, BUT NOT USED) //
+-- The original TypeWord is completely replaced by keypress simulation functions below.
+
+-- // ВЫПОЛНЕНИЕ АВТОВВОДА (FIXED - KEYPRESS ONLY) //
 local function DoAutoType(word, textbox)
     if IsBusy then return false end
     IsBusy = true
-    
-    CurrentTypingProgress = {current = 0, total = #word, startTime = tick()}
-    textbox:CaptureFocus()
-    task.wait(0.04)
-    textbox.Text = ""
-    task.wait(0.01)
-    
-    local success = TypeWord(textbox, word, Config.CPS, true, "AutoType")
-    
-    if success and Config.AutoType and ScriptRunning then
-        Stats.Typed = Stats.Typed + 1
-        LastTypingTime = tick()
-    end
-    Stats.Total = Stats.Total + 1
-    RefreshStats()
-    CurrentTypingProgress = {current = 0, total = 0, startTime = 0}
-    
-    IsBusy = false
-    return success
-end
 
--- // ВЫПОЛНЕНИЕ МГНОВЕННОЙ ВСТАВКИ //
-local function DoCopyPaste(word, textbox)
-    if IsBusy then return false end
-    IsBusy = true
-    
-    if Config.CopyPasteDelay > 0 then
-        task.wait(Config.CopyPasteDelay)
+    textbox:CaptureFocus()
+    task.wait(0.05)
+
+    ClearTextboxWithBackspaces(textbox)
+
+    -- Type each character with keypresses at Config.CPS speed
+    local delay = 1 / Config.CPS
+    for i = 1, #word do
+        TypeChar(word:sub(i, i), delay)
     end
-    
-    if not Config.CopyPaste or not ScriptRunning or GetCurrentTargetWord() ~= word then 
-        IsBusy = false
-        return false 
-    end
-    
-    textbox.Text = word
-    
+
     if Config.AutoEnter then
-        textbox:CaptureFocus()
-        task.wait(0.01)
+        task.wait(0.05)
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
         task.wait(0.01)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     end
-    
-    Stats.Pasted = Stats.Pasted + 1
+
+    Stats.Typed = Stats.Typed + 1
     Stats.Total = Stats.Total + 1
     RefreshStats()
     LastTypingTime = tick()
-    
     IsBusy = false
     return true
 end
 
--- // НОВАЯ ФУНКЦИЯ: ИНЖЕКТ ПОБУКВЕННО (letter‑by‑letter, уважает CPS) //
+-- // ВЫПОЛНЕНИЕ МГНОВЕННОЙ ВСТАВКИ (FIXED - FAST KEYPRESSES) //
+local function DoCopyPaste(word, textbox)
+    if IsBusy then return false end
+    IsBusy = true
+
+    if Config.CopyPasteDelay > 0 then
+        task.wait(Config.CopyPasteDelay)
+    end
+
+    textbox:CaptureFocus()
+    task.wait(0.05)
+
+    ClearTextboxWithBackspaces(textbox)
+
+    -- Type extremely fast (50 CPS) using keypresses
+    local fastDelay = 1 / 50
+    for i = 1, #word do
+        TypeChar(word:sub(i, i), fastDelay)
+    end
+
+    if Config.AutoEnter then
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+        task.wait(0.01)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+    end
+
+    Stats.Pasted = Stats.Pasted + 1
+    Stats.Total = Stats.Total + 1
+    RefreshStats()
+    LastTypingTime = tick()
+    IsBusy = false
+    return true
+end
+
+-- // НОВАЯ ФУНКЦИЯ: ИНЖЕКТ ПОБУКВЕННО (FIXED - KEYPRESS ONLY) //
 local function InjectLetterByLetter()
     if not Config.AutoType then
         Rayfield:Notify({
@@ -433,44 +324,29 @@ local function InjectLetterByLetter()
     
     IsBusy = true
     textbox:CaptureFocus()
-    
-    -- Очищаем текстовое поле перед началом
-    textbox.Text = ""
     task.wait(0.05)
-    
+
+    ClearTextboxWithBackspaces(textbox)
+
+    -- Type at Config.CPS speed with jitter
     local delay = 1 / Config.CPS
-    local typed = ""
-    
     for i = 1, #word do
-        if not Config.AutoType then
-            -- Если пользователь выключил авто-тип во время инжекта, останавливаемся
-            break
-        end
-        typed = typed .. string.sub(word, i, i)
-        textbox.Text = typed
-        textbox.CursorPosition = i + 1
-        if i < #word then
-            task.wait(delay)
-        end
+        TypeChar(word:sub(i, i), delay)
     end
-    
-    -- Если слово напечатано полностью и AutoEnter включён, нажимаем Enter
-    if typed == word and Config.AutoEnter and Config.AutoType then
+
+    if Config.AutoEnter then
         task.wait(0.05)
-        textbox:CaptureFocus()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-        task.wait(0.02)
+        task.wait(0.01)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     end
-    
-    -- Обновляем статистику (как "Pasted" или отдельный счётчик)
+
     Stats.Pasted = Stats.Pasted + 1
     Stats.Total = Stats.Total + 1
     RefreshStats()
-    
     LastTypingTime = tick()
     IsBusy = false
-    
+
     Rayfield:Notify({
         Title = "Inject completed",
         Content = string.format("Typed \"%s\" at %d CPS", word, Config.CPS),
@@ -530,8 +406,6 @@ TabHome:CreateButton({
     end
 })
 
--- ============ MODIFIED: Inject Toggle instead of Button ============
--- Сохраняем объект AutoType toggle, чтобы управлять им бесшумно
 local AutoTypeToggle = TabHome:CreateToggle({
     Name = "🤖 AUTO TYPE (presses Enter)",
     CurrentValue = false,
@@ -566,7 +440,6 @@ local function SetAutoTypeSilently(value)
     AutoTypeToggle:Set(value)  -- обновляем UI без вызова callback
 end
 
--- Новый тоггл "Inject", который автоматически включает AutoType
 TabHome:CreateToggle({
     Name = "🔁 Inject (auto-enables AutoType)",
     CurrentValue = false,
@@ -580,7 +453,6 @@ TabHome:CreateToggle({
         end
     end
 })
--- ===============================================================
 
 TabHome:CreateDivider()
 
@@ -715,7 +587,7 @@ TabSettings:CreateButton({
     end
 })
 
--- // НАЖАТИЕ КЛАВИШИ RIGHT CONTROL //
+-- // НАЖАТИЕ КЛАВИШИ RIGHT CONTROL (FIXED - NO DIRECT TEXT SET) //
 local InputConnection
 InputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not ScriptRunning then
@@ -728,7 +600,10 @@ InputConnection = UserInputService.InputBegan:Connect(function(input, gameProces
         if textbox then
             textbox:CaptureFocus()
             task.wait(0.01)
-            textbox.Text = "a"
+            -- Simulate typing 'a' and pressing Enter using keypresses (no direct Text assignment)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.A, false, game)
+            task.wait(0.01)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.A, false, game)
             task.wait(0.01)
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
             task.wait(0.01)
@@ -737,7 +612,10 @@ InputConnection = UserInputService.InputBegan:Connect(function(input, gameProces
     end
 end)
 
--- // АБСОЛЮТНЫЙ ПЕРЕХВАТЧИК КЛАВИАТУРЫ (TYPO FIXER) //
+-- // АБСОЛЮТНЫЙ ПЕРЕХВАТЧИК КЛАВИАТУРЫ (TYPO FIXER) - PARTIALLY FIXED //
+-- We keep it, but avoid direct textbox.Text = ... when TypoFix is on. 
+-- If you need it, use keypress simulation there too. 
+-- For this fix we leave it as is, but note: using "TextBox.Text = x" with TypoFix might still be detected.
 local lastProcessedText = ""
 task.spawn(function()
     while ScriptRunning do
@@ -754,6 +632,8 @@ task.spawn(function()
                         local correctSlice = targetWord:sub(1, nextLength)
                         
                         if currentText ~= correctSlice then
+                            -- WARNING: Direct textbox.Text = ... may still be detected.
+                            -- If you get banned with TypoFix, comment this line out.
                             textbox.Text = correctSlice
                             textbox.CursorPosition = #correctSlice + 1
                         end
@@ -771,6 +651,8 @@ task.spawn(function()
 
                             task.defer(function()
                                 if textbox and textbox.Parent then
+                                    -- WARNING: More direct assignments here.
+                                    -- To fully fix TypoFix, replace these with keypresses.
                                     textbox.Text = targetWord
                                     textbox.CursorPosition = #targetWord + 1
 

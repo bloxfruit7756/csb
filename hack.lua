@@ -39,7 +39,6 @@ local Config = {
     AutoCopy = false,
     AutoChat = false,
     AutoEnter = true,
-    LinkTextbox = true,
     CPS = 16,
     CopyPasteDelay = 0.0
 }
@@ -51,6 +50,7 @@ local Stats = {
     Total = 0
 }
 
+-- Определение функции до её вызова в методах
 local function RefreshStats()
     if not ScriptRunning then return end
     if S1 and S2 and S3 then
@@ -74,34 +74,30 @@ if not WordValue then
     WordValue.Parent = game:GetService("ReplicatedStorage")
 end
 
+-- // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ ЦЕЛИ //
 local function GetCurrentTargetWord()
     if LocalOverrideWord ~= "" then return LocalOverrideWord end
     return WordValue.Value
 end
 
-local function IsKeyboardMash(str)
-    if not str or #str < 5 then return false end
-    local lower = str:lower()
-    if not lower:find("[aeiouyаеёиоуыэюя]") then
-        return true
-    end
-    return false
-end
-
+-- Вспомогательная функция автокопирования
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        if target and #target > 1 and target ~= LastCopiedWord and not IsKeyboardMash(target) then
+        -- ЗАЩИТА: Строго игнорируем одиночные буквы или пустые строки от макросов
+        if target and #target > 1 and target ~= LastCopiedWord then
             LastCopiedWord = target
             setclipboard(target)
         end
     end
 end
 
+-- Вспомогательная функция отправки в чат
 local function HandleAutoChat()
     if Config.AutoChat then
         local target = GetCurrentTargetWord()
-        if target and #target > 1 and target ~= LastChattedWord and not IsKeyboardMash(target) then
+        -- ЗАЩИТА: Строго блокируем отправку коротких букв-заглушек в чат
+        if target and #target > 1 and target ~= LastChattedWord then
             LastChattedWord = target
             local formattedMessage = "Word : " .. target
             
@@ -153,7 +149,7 @@ local function LoadWordsFromGist()
 end
 
 local function SaveWordToGist(word)
-    if not SyncEnabled or word == "" or #word <= 1 or IsKeyboardMash(word) then return end
+    if not SyncEnabled or word == "" or #word <= 1 then return end
     
     for _, w in ipairs(SyncedWords) do
         if w == word then return end
@@ -176,6 +172,7 @@ local function SaveWordToGist(word)
     end)
 end
 
+-- // ПРОВЕРКА И ПОИСК ТЕКСТБОКСА //
 local function isRealTurnTextbox(obj)
     if not obj:IsA("TextBox") then return false end
     
@@ -216,6 +213,7 @@ local function findMyTextbox()
     return nil
 end
 
+-- // ЛОКАЛЬНАЯ СИМУЛЯЦИЯ ИЗМЕНЕНИЯ ИНТЕРФЕЙСА ИГРЫ //
 local function ForceUpdateGameUI(newWord)
     if newWord == "" or #newWord <= 1 then return end
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -236,6 +234,7 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
     end
 
     local delay = math.max(1 / cps, 0.001)
+
     local typingId = tostring(tick()) .. tostring(math.random(1000,9999))
     CurrentTypingId = typingId
 
@@ -267,7 +266,9 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         if textbox.Text ~= text then
             textbox.Text = text
         end
+
         local desiredCursor = #text + 1
+
         if textbox.CursorPosition ~= desiredCursor then
             textbox.CursorPosition = desiredCursor
         end
@@ -275,29 +276,43 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
 
     local function RepairText(expected)
         local now = tick()
-        if now - lastRepair < repairCooldown then return end
+
+        if now - lastRepair < repairCooldown then
+            return
+        end
+
         lastRepair = now
 
         local current = textbox.Text
-        if current == expected then return end
+
+        if current == expected then
+            return
+        end
+
         if #current > #expected then
             ForceText(expected)
             return
         end
+
         if #current > 0 and word:sub(1, #current) == current then
             lastGoodText = current
             return
         end
+
         ForceText(expected)
     end
 
     ForceText("")
+
     local i = 1
 
     while i <= #word do
-        if not IsValid() then return false end
+        if not IsValid() then
+            return false
+        end
 
         local expected = word:sub(1, i)
+
         RepairText(expected)
         ForceText(expected)
 
@@ -305,18 +320,24 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         CurrentTypingProgress.current = i
 
         local started = tick()
+
         while tick() - started < delay do
-            if not IsValid() then return false end
+            if not IsValid() then
+                return false
+            end
+
             RepairText(expected)
             task.wait()
         end
 
         local current = textbox.Text
+
         if current ~= expected then
             if #current > 0 and word:sub(1, #current) == current then
                 i = #current
             end
         end
+
         i += 1
     end
 
@@ -335,7 +356,10 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
 
         task.delay(0.03, function()
-            if textbox and textbox.Parent and textbox.Text ~= "" and textbox.Text ~= word then
+            if textbox
+            and textbox.Parent
+            and textbox.Text ~= ""
+            and textbox.Text ~= word then
                 textbox.Text = ""
                 textbox.CursorPosition = 1
             end
@@ -508,6 +532,7 @@ local TabWords = Window:CreateTab("🔤 Override", 4370344717)
 local TabStats = Window:CreateTab("📊 Statistics", 4483362458)
 local TabSettings = Window:CreateTab("⚙️ Settings", 7734053495)
 
+-- ЭЛЕМЕНТЫ HOME TAB
 local LabelCurrent = TabHome:CreateLabel("📝 Current Word: None")
 local LabelLength = TabHome:CreateLabel("📏 Length: 0 characters")
 local LabelProgress = TabHome:CreateLabel("📈 Progress: 0% | 0/0 | 0.0s")
@@ -547,7 +572,7 @@ TabHome:CreateButton({
 })
 
 local AutoTypeToggle = TabHome:CreateToggle({
-    Name = "🤖 AUTO TYPE (Types Full Word + Enter)",
+    Name = "🤖 AUTO TYPE (presses Enter)",
     CurrentValue = false,
     Flag = "AT",
     Callback = function(v)
@@ -579,6 +604,7 @@ local function SetAutoTypeSilently(value)
     AutoTypeToggle:Set(value)
 end
 
+-- Тоггл "Inject"
 TabHome:CreateToggle({
     Name = "🔁 Inject (auto-enables AutoType)",
     CurrentValue = false,
@@ -594,15 +620,6 @@ TabHome:CreateToggle({
 })
 
 TabHome:CreateDivider()
-
-TabHome:CreateToggle({
-    Name = "ANYTHING_TYPER",
-    CurrentValue = true,
-    Flag = "LinkTextbox",
-    Callback = function(v)
-        Config.LinkTextbox = v
-    end
-})
 
 TabHome:CreateToggle({
     Name = "📋 BYPASS PASTE (Instant Fill + Enter)",
@@ -641,7 +658,9 @@ TabHome:CreateToggle({
     Flag = "AC",
     Callback = function(v)
         Config.AutoCopy = v
-        if v then HandleAutoCopy() end
+        if v then
+            HandleAutoCopy()
+        end
     end
 })
 
@@ -651,7 +670,9 @@ TabHome:CreateToggle({
     Flag = "ACHAT",
     Callback = function(v)
         Config.AutoChat = v
-        if v then HandleAutoChat() end
+        if v then
+            HandleAutoChat()
+        end
     end
 })
 
@@ -786,6 +807,7 @@ task.spawn(function()
             
             if textbox and textbox:IsFocused() and targetWord and targetWord ~= "" then
                 local currentText = textbox.Text
+                
                 if currentText ~= lastProcessedText then
                     if #currentText > #lastProcessedText then
                         local nextLength = math.clamp(#currentText, 1, #targetWord)
@@ -795,17 +817,26 @@ task.spawn(function()
                             textbox.Text = correctSlice
                             textbox.CursorPosition = #correctSlice + 1
                         end
+
                         lastProcessedText = correctSlice
 
                         local fixedText = textbox.Text
-                        if Config.AutoEnter and fixedText == targetWord and #fixedText == #targetWord and (tick() - LastSubmitTime) > 0.5 then
+
+                        if Config.AutoEnter
+                        and fixedText == targetWord
+                        and #fixedText == #targetWord
+                        and (tick() - LastSubmitTime) > 0.5 then
+
                             LastSubmitTime = tick()
+
                             task.defer(function()
                                 if textbox and textbox.Parent then
                                     textbox.Text = targetWord
                                     textbox.CursorPosition = #targetWord + 1
+
                                     textbox:CaptureFocus()
                                     task.wait()
+
                                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
                                     task.wait(0.02)
                                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
@@ -833,6 +864,7 @@ WordValueConnection = WordValue.Changed:Connect(function(newWord)
     end
     
     LastHandledWord = "" 
+    
     UpdateCurrentWord()
     HandleAutoCopy()
     HandleAutoChat()
@@ -848,6 +880,7 @@ WordValueConnection = WordValue.Changed:Connect(function(newWord)
 end)
 UpdateCurrentWord()
 
+-- // CHECK IF TEXTBOX IS REALLY VISIBLE //
 local function IsTextboxReady(textbox)
     if not textbox then return false end
     if not textbox.Parent then return false end
@@ -861,6 +894,7 @@ local function IsTextboxReady(textbox)
     return true
 end
 
+-- // WAIT FOR TEXTBOX //
 local function WaitForTextbox(timeout)
     local start = tick()
     repeat
@@ -877,14 +911,31 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        if textbox and IsTextboxReady(textbox) and textbox.Text ~= "" and Config.LinkTextbox and not Config.TypoFix and #textbox.Text > 1 and LocalOverrideWord == "" then
-            if WordValue.Value ~= textbox.Text then
-                WordValue.Value = textbox.Text
+        -- ПОСТОЯННО ВКЛЮЧЕНО В ФОНЕ:
+        -- Читает текстбокс игры напрямую и обновляет WordValue, если мы печатаем легитимное слово
+        if textbox
+        and IsTextboxReady(textbox)
+        and textbox.Text ~= ""
+        and LocalOverrideWord == "" then
+            
+            local currentText = textbox.Text
+            local isLegitTyping = (curWord ~= "" and curWord:sub(1, #currentText) == currentText)
+            
+            -- Если это легитимный ввод (не спам-макрос), синхронизируем значение напрямую
+            if isLegitTyping and not Config.TypoFix and #currentText > 1 then
+                if WordValue.Value ~= currentText then
+                    WordValue.Value = currentText
+                end
             end
         end
 
-        if textbox and IsTextboxReady(textbox) and not IsBusy and curWord ~= "" and curWord ~= LastHandledWord then
-            -- ЧИСТЫЙ РЕВЕРС: Каждая функция проверяется исключительно своим флагом конфигурации перед любым действием
+        if textbox
+        and IsTextboxReady(textbox)
+        and not IsBusy
+        and curWord ~= ""
+        and curWord ~= LastHandledWord then
+
+            -- COPYPASTE
             if Config.CopyPaste then
                 if textbox.Visible then
                     LabelStatus:Set("📋 Status: Copy Pasting...")
@@ -892,6 +943,8 @@ task.spawn(function()
                     if success then LastHandledWord = curWord end
                     LabelStatus:Set("⚡ Status: Idle")
                 end
+
+            -- AUTOTYPE
             elseif Config.AutoType then
                 if (tick() - LastTypingTime) >= TYPING_COOLDOWN then
                     if textbox.Visible then

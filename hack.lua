@@ -39,6 +39,7 @@ local Config = {
     AutoCopy = false,
     AutoChat = false,
     AutoEnter = true,
+    LinkTextbox = true, -- НАСТРОЙКА ПО УМОЛЧАНИЮ ДЛЯ ОБНОВЛЕНИЯ WORDVALUE
     CPS = 16,
     CopyPasteDelay = 0.0
 }
@@ -80,12 +81,10 @@ local function GetCurrentTargetWord()
     return WordValue.Value
 end
 
--- // ИСПРАВЛЕНО: ФУНКЦИЯ ОПРЕДЕЛЕНИЯ КЛАВИАТУРНОГО МАША //
--- Проверяет, состоит ли строка из случайного набора букв (высокая концентрация согласных без гласных)
+-- // ФУНКЦИЯ ОПРЕДЕЛЕНИЯ КЛАВИАТУРНОГО МАША //
 local function IsKeyboardMash(str)
     if not str or #str < 5 then return false end
     local lower = str:lower()
-    -- Если в длинной строке вообще нет гласных звуков, это гарантированный спам/маш
     if not lower:find("[aeiouyаеёиоуыэюя]") then
         return true
     end
@@ -96,7 +95,6 @@ end
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Игнорируем короткие строки И клавиатурный маш типа DGAHGSHJGD
         if target and #target > 1 and target ~= LastCopiedWord and not IsKeyboardMash(target) then
             LastCopiedWord = target
             setclipboard(target)
@@ -108,7 +106,6 @@ end
 local function HandleAutoChat()
     if Config.AutoChat then
         local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Блокируем отправку коротких строк И клавиатурного маша в чат
         if target and #target > 1 and target ~= LastChattedWord and not IsKeyboardMash(target) then
             LastChattedWord = target
             local formattedMessage = "Word : " .. target
@@ -316,6 +313,7 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
 
     ForceText("")
 
+    -- ИСПРАВЛЕНО: Теперь всегда начинаем с 1 символа, ничего не пропускаем
     local i = 1
 
     while i <= #word do
@@ -584,7 +582,7 @@ TabHome:CreateButton({
 })
 
 local AutoTypeToggle = TabHome:CreateToggle({
-    Name = "🤖 AUTO TYPE (presses Enter)",
+    Name = "🤖 AUTO TYPE (Types Full Word + Enter)",
     CurrentValue = false,
     Flag = "AT",
     Callback = function(v)
@@ -632,6 +630,16 @@ TabHome:CreateToggle({
 })
 
 TabHome:CreateDivider()
+
+-- ИЗМЕНЕНО НАЗВАНИЕ ПО ВАШЕМУ ЗАПРОСУ: ANYTING_TYPER
+TabHome:CreateToggle({
+    Name = "ANYTHING_TYPER",
+    CurrentValue = true,
+    Flag = "LinkTextbox",
+    Callback = function(v)
+        Config.LinkTextbox = v
+    end
+})
 
 TabHome:CreateToggle({
     Name = "📋 BYPASS PASTE (Instant Fill + Enter)",
@@ -923,11 +931,11 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- ВОССТАНОВЛЕНО: Мы снова разрешаем внешним макросам/кликерам обновлять локальную
-        -- переменную WordValue при быстром вводе текста, убрав блокировку на легитимность.
+        -- СВЯЗЬ ЧЕРЕЗ ТУМБЛЕР ANYTHING_TYPER
         if textbox
         and IsTextboxReady(textbox)
         and textbox.Text ~= ""
+        and Config.LinkTextbox
         and not Config.TypoFix
         and #textbox.Text > 1
         and LocalOverrideWord == "" then

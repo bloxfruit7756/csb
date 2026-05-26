@@ -313,7 +313,6 @@ local function TypeWord(textbox, word, cps, pressEnter, modeName)
 
     ForceText("")
 
-    -- ИСПРАВЛЕНО: Теперь всегда начинаем с 1 символа, ничего не пропускаем
     local i = 1
 
     while i <= #word do
@@ -382,6 +381,8 @@ end
 
 -- // ВЫПОЛНЕНИЕ АВТОВВОДА //
 local function DoAutoType(word, textbox)
+    -- СТРОГИЙ ЗАПРЕТ ВЫПОЛНЕНИЯ ЕСЛИ ОПЦИЯ ВЫКЛЮЧЕНА
+    if not Config.AutoType then return false end
     if IsBusy then return false end
     IsBusy = true
     
@@ -407,6 +408,7 @@ end
 
 -- // ВЫПОЛНЕНИЕ МГНОВЕННОЙ ВСТАВКИ //
 local function DoCopyPaste(word, textbox)
+    if not Config.CopyPaste then return false end
     if IsBusy then return false end
     IsBusy = true
     
@@ -631,7 +633,7 @@ TabHome:CreateToggle({
 
 TabHome:CreateDivider()
 
--- ИЗМЕНЕНО НАЗВАНИЕ ПО ВАШЕМУ ЗАПРОСУ: ANYTING_TYPER
+-- ТУМБЛЕР СВЯЗИ ДВИЖКА
 TabHome:CreateToggle({
     Name = "ANYTHING_TYPER",
     CurrentValue = true,
@@ -950,7 +952,7 @@ task.spawn(function()
         and curWord ~= ""
         and curWord ~= LastHandledWord then
 
-            -- COPYPASTE
+            -- ХАРДЛОК: ПОЛНАЯ БЛОКИРОВКА ЕСЛИ ВСЕ ВЫКЛЮЧЕНО
             if Config.CopyPaste then
                 if textbox.Visible then
                     LabelStatus:Set("📋 Status: Copy Pasting...")
@@ -958,8 +960,6 @@ task.spawn(function()
                     if success then LastHandledWord = curWord end
                     LabelStatus:Set("⚡ Status: Idle")
                 end
-
-            -- AUTOTYPE
             elseif Config.AutoType then
                 if (tick() - LastTypingTime) >= TYPING_COOLDOWN then
                     if textbox.Visible then
@@ -969,6 +969,9 @@ task.spawn(function()
                         LabelStatus:Set("⚡ Status: Idle")
                     end
                 end
+            else
+                -- Если и CopyPaste и AutoType выключены, мы принудительно сбрасываем статус и ничего не делаем
+                LabelStatus:Set("⚡ Status: Idle")
             end
         end
         task.wait(0.03)

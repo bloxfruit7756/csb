@@ -82,40 +82,40 @@ end
 
 -- Вспомогательная функция автокопирования
 local function HandleAutoCopy()
-    if Config.AutoCopy then
-        local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Строго игнорируем одиночные буквы или пустые строки от макросов
-        if target and #target > 1 and target ~= LastCopiedWord then
-            LastCopiedWord = target
-            setclipboard(target)
-        end
+    if not Config.AutoCopy then return end
+    local target = GetCurrentTargetWord()
+    -- ЗАЩИТА: Строго игнорируем одиночные буквы или пустые строки от макросов
+    if target and #target > 1 and target ~= LastCopiedWord then
+        LastCopiedWord = target
+        setclipboard(target)
     end
 end
 
 -- Вспомогательная функция отправки в чат
 local function HandleAutoChat()
-    if Config.AutoChat then
-        local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Строго блокируем отправку коротких букв-заглушек в чат
-        if target and #target > 1 and target ~= LastChattedWord then
-            LastChattedWord = target
-            local formattedMessage = "Word : " .. target
-            
-            local TextChatService = game:GetService("TextChatService")
-            if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-                local generalChannel = TextChatService:FindFirstChild("RBXGeneral", true)
-                if generalChannel and generalChannel:IsA("TextChannel") then
-                    generalChannel:SendAsync(formattedMessage)
-                    return
-                end
+    -- ЖЕСТКАЯ БЛОКИРОВКА: Если тумблер выключен, функция прерывается мгновенно!
+    if not Config.AutoChat then return end
+
+    local target = GetCurrentTargetWord()
+    -- ЗАЩИТА: Строго блокируем отправку коротких букв-заглушек в чат
+    if target and #target > 1 and target ~= LastChattedWord then
+        LastChattedWord = target
+        local formattedMessage = "Word : " .. target
+        
+        local TextChatService = game:GetService("TextChatService")
+        if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local generalChannel = TextChatService:FindFirstChild("RBXGeneral", true)
+            if generalChannel and generalChannel:IsA("TextChannel") then
+                generalChannel:SendAsync(formattedMessage)
+                return
             end
-            
-            local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            if chatEvents then
-                local sayMessage = chatEvents:FindFirstChild("SayMessageRequest")
-                if sayMessage and sayMessage:IsA("RemoteEvent") then
-                    sayMessage:FireServer(formattedMessage, "All")
-                end
+        end
+        
+        local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if chatEvents then
+            local sayMessage = chatEvents:FindFirstChild("SayMessageRequest")
+            if sayMessage and sayMessage:IsA("RemoteEvent") then
+                sayMessage:FireServer(formattedMessage, "All")
             end
         end
     end
@@ -698,7 +698,6 @@ TabWords:CreateInput({
             LastHandledWord = ""
             UpdateCurrentWord()
             HandleAutoCopy()
-            HandleAutoChat()
             ForceUpdateGameUI(LocalOverrideWord)
         end
     end
@@ -711,7 +710,6 @@ TabWords:CreateButton({
         LastHandledWord = ""
         UpdateCurrentWord()
         HandleAutoCopy()
-        HandleAutoChat()
     end
 })
 
@@ -867,7 +865,6 @@ WordValueConnection = WordValue.Changed:Connect(function(newWord)
     
     UpdateCurrentWord()
     HandleAutoCopy()
-    HandleAutoChat()
     
     if LocalOverrideWord ~= "" then
         ForceUpdateGameUI(LocalOverrideWord)
@@ -940,7 +937,10 @@ task.spawn(function()
                 if textbox.Visible then
                     LabelStatus:Set("📋 Status: Copy Pasting...")
                     local success = DoCopyPaste(curWord, textbox)
-                    if success then LastHandledWord = curWord end
+                    if success then 
+                        LastHandledWord = curWord 
+                        HandleAutoChat() -- Перенесено сюда, срабатывает строго после успешной отправки слова
+                    end
                     LabelStatus:Set("⚡ Status: Idle")
                 end
 
@@ -950,7 +950,10 @@ task.spawn(function()
                     if textbox.Visible then
                         LabelStatus:Set("🚀 Status: Auto Typing...")
                         local success = DoAutoType(curWord, textbox)
-                        if success then LastHandledWord = curWord end
+                        if success then 
+                            LastHandledWord = curWord 
+                            HandleAutoChat() -- Перенесено сюда, срабатывает строго после успешной отправки слова
+                        end
                         LabelStatus:Set("⚡ Status: Idle")
                     end
                 end

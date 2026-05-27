@@ -84,7 +84,6 @@ end
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Строго игнорируем одиночные буквы или пустые строки от макросов
         if target and #target > 1 and target ~= LastCopiedWord then
             LastCopiedWord = target
             setclipboard(target)
@@ -94,11 +93,10 @@ end
 
 -- Вспомогательная функция отправки в чат
 local function HandleAutoChat()
-    -- СТРОГАЯ ПРОВЕРКА: Если autochat выключен, мгновенно останавливаем выполнение!
+    -- СТРОГАЯ ПРОВЕРКА: Если тумблер выключен, функция прерывается мгновенно!
     if not Config.AutoChat then return end
 
     local target = GetCurrentTargetWord()
-    -- ЗАЩИТА: Строго блокируем отправку коротких букв-заглушек в чат
     if target and #target > 1 and target ~= LastChattedWord then
         LastChattedWord = target
         local formattedMessage = "Word : " .. target
@@ -912,17 +910,13 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- ПОСТОЯННО ВКЛЮЧЕНО В ФОНЕ:
-        -- Читает текстбокс игры напрямую и обновляет WordValue, если мы печатаем легитимное слово
-        if textbox
-        and IsTextboxReady(textbox)
-        and textbox.Text ~= ""
-        and LocalOverrideWord == "" then
-            
+        -- ВЫСОКОСКОРОСТНОЙ ДВИЖОК СИНХРОНИЗАЦИИ (ЧТЕНИЕ РУЧНОГО ВВОДА КЛАВИАТУРЫ В СЕТЕВУЮ ПЕРЕМЕННУЮ)
+        if textbox and IsTextboxReady(textbox) and textbox.Text ~= "" and LocalOverrideWord == "" then
             local currentText = textbox.Text
-            local isLegitTyping = (curWord ~= "" and curWord:sub(1, #currentText) == currentText)
+            -- Проверяем, совпадает ли то, что вводит человек, со словом из памяти
+            local isLegitTyping = (curWord ~= "" and string.sub(curWord, 1, #currentText) == currentText)
             
-            -- Если это легитимный ввод (не спам-макрос), синхронизируем значение напрямую
+            -- Если ввод ручной, пишем текущий текст прямо в WordValue, чтобы синхронизировать макрос
             if isLegitTyping and not Config.TypoFix and #currentText > 1 then
                 if WordValue.Value ~= currentText then
                     WordValue.Value = currentText

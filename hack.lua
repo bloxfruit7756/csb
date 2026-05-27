@@ -93,7 +93,6 @@ end
 
 -- Вспомогательная функция отправки в чат
 local function HandleAutoChat()
-    -- СТРОГАЯ ПРОВЕРКА: Если тумблер выключен, функция прерывается мгновенно!
     if not Config.AutoChat then return end
 
     local target = GetCurrentTargetWord()
@@ -910,14 +909,13 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- ВЫСОКОСКОРОСТНОЙ ДВИЖОК СИНХРОНИЗАЦИИ (ЧТЕНИЕ РУЧНОГО ВВОДА КЛАВИАТУРЫ В СЕТЕВУЮ ПЕРЕМЕННУЮ)
-        if textbox and IsTextboxReady(textbox) and textbox.Text ~= "" and LocalOverrideWord == "" then
+        -- ИСПРАВЛЕННЫЙ ВЫСОКОСКОРОСТНОЙ ИЗМЕНИТЕЛЬ ПЕРЕМЕННЫХ (АКТИВНОЕ ИЗМЕНЕНИЕ WORDVALUE НА ОСНОВЕ ПЕЧАТИ)
+        if textbox and IsTextboxReady(textbox) and LocalOverrideWord == "" then
             local currentText = textbox.Text
-            -- Проверяем, совпадает ли то, что вводит человек, со словом из памяти
-            local isLegitTyping = (curWord ~= "" and string.sub(curWord, 1, #currentText) == currentText)
             
-            -- Если ввод ручной, пишем текущий текст прямо в WordValue, чтобы синхронизировать макрос
-            if isLegitTyping and not Config.TypoFix and #currentText > 1 then
+            -- Когда вы печатаете вручную, текстбокс не пустой. Мы принудительно пишем его в WordValue,
+            -- если TypoFix выключен, чтобы не ломать логику исправления ошибок.
+            if not Config.TypoFix and #currentText >= 1 and not IsBusy then
                 if WordValue.Value ~= currentText then
                     WordValue.Value = currentText
                 end

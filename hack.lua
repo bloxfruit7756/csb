@@ -80,11 +80,24 @@ local function GetCurrentTargetWord()
     return WordValue.Value
 end
 
+-- // ИСПРАВЛЕНО: ФУНКЦИЯ ОПРЕДЕЛЕНИЯ КЛАВИАТУРНОГО МАША //
+-- Проверяет, состоит ли строка из случайного набора букв (высокая концентрация согласных без гласных)
+local function IsKeyboardMash(str)
+    if not str or #str < 5 then return false end
+    local lower = str:lower()
+    -- Если в длинной строке вообще нет гласных звуков, это гарантированный спам/маш
+    if not lower:find("[aeiouyаеёиоуыэюя]") then
+        return true
+    end
+    return false
+end
+
 -- Вспомогательная функция автокопирования
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        if target and #target > 1 and target ~= LastCopiedWord then
+        -- ЗАЩИТА: Игнорируем короткие строки И клавиатурный маш типа DGAHGSHJGD
+        if target and #target > 1 and target ~= LastCopiedWord and not IsKeyboardMash(target) then
             LastCopiedWord = target
             setclipboard(target)
         end
@@ -93,27 +106,28 @@ end
 
 -- Вспомогательная функция отправки в чат
 local function HandleAutoChat()
-    if not Config.AutoChat then return end
-
-    local target = GetCurrentTargetWord()
-    if target and #target > 1 and target ~= LastChattedWord then
-        LastChattedWord = target
-        local formattedMessage = "Word : " .. target
-        
-        local TextChatService = game:GetService("TextChatService")
-        if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local generalChannel = TextChatService:FindFirstChild("RBXGeneral", true)
-            if generalChannel and generalChannel:IsA("TextChannel") then
-                generalChannel:SendAsync(formattedMessage)
-                return
+    if Config.AutoChat then
+        local target = GetCurrentTargetWord()
+        -- ЗАЩИТА: Блокируем отправку коротких строк И клавиатурного маша в чат
+        if target and #target > 1 and target ~= LastChattedWord and not IsKeyboardMash(target) then
+            LastChattedWord = target
+            local formattedMessage = "Word : " .. target
+            
+            local TextChatService = game:GetService("TextChatService")
+            if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+                local generalChannel = TextChatService:FindFirstChild("RBXGeneral", true)
+                if generalChannel and generalChannel:IsA("TextChannel") then
+                    generalChannel:SendAsync(formattedMessage)
+                    return
+                end
             end
-        end
-        
-        local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-        if chatEvents then
-            local sayMessage = chatEvents:FindFirstChild("SayMessageRequest")
-            if sayMessage and sayMessage:IsA("RemoteEvent") then
-                sayMessage:FireServer(formattedMessage, "All")
+            
+            local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            if chatEvents then
+                local sayMessage = chatEvents:FindFirstChild("SayMessageRequest")
+                if sayMessage and sayMessage:IsA("RemoteEvent") then
+                    sayMessage:FireServer(formattedMessage, "All")
+                end
             end
         end
     end
@@ -147,7 +161,7 @@ local function LoadWordsFromGist()
 end
 
 local function SaveWordToGist(word)
-    if not SyncEnabled or word == "" or #word <= 1 then return end
+    if not SyncEnabled or word == "" or #word <= 1 or IsKeyboardMash(word) then return end
     
     for _, w in ipairs(SyncedWords) do
         if w == word then return end
@@ -909,15 +923,16 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- ВЫСОКОСКОРОСТНОЙ ИЗМЕНИТЕЛЬ ЗНАЧЕНИЙ (СИНХРОНИЗИРУЕТСЯ С КЛАВИАТУРОЙ ТОЛЬКО КОГДА АВТОВВОД ВЫКЛЮЧЕН)
-        if textbox and IsTextboxReady(textbox) and LocalOverrideWord == "" then
-            local currentText = textbox.Text
-            
-            -- СТРОГОЕ ОГРАНИЧЕНИЕ: Работает исключительно когда AutoType выключен (OFF)
-            if not Config.AutoType and not Config.TypoFix and #currentText >= 1 and not IsBusy then
-                if WordValue.Value ~= currentText then
-                    WordValue.Value = currentText
-                end
+        -- ВОССТАНОВЛЕНО: Мы снова разрешаем внешним макросам/кликерам обновлять локальную
+        -- переменную WordValue при быстром вводе текста, убрав блокировку на легитимность.
+        if textbox
+        and IsTextboxReady(textbox)
+        and textbox.Text ~= ""
+        and not Config.TypoFix
+        and #textbox.Text > 1
+        and LocalOverrideWord == "" then
+            if WordValue.Value ~= textbox.Text then
+                WordValue.Value = textbox.Text
             end
         end
 

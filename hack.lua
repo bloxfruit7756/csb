@@ -909,13 +909,12 @@ task.spawn(function()
         local textbox = WaitForTextbox(0.2)
         local curWord = GetCurrentTargetWord()
 
-        -- ИСПРАВЛЕННЫЙ ВЫСОКОСКОРОСТНОЙ ИЗМЕНИТЕЛЬ ПЕРЕМЕННЫХ (АКТИВНОЕ ИЗМЕНЕНИЕ WORDVALUE НА ОСНОВЕ ПЕЧАТИ)
+        -- ВЫСОКОСКОРОСТНОЙ ИЗМЕНИТЕЛЬ ЗНАЧЕНИЙ (СИНХРОНИЗИРУЕТСЯ С КЛАВИАТУРОЙ ТОЛЬКО КОГДА АВТОВВОД ВЫКЛЮЧЕН)
         if textbox and IsTextboxReady(textbox) and LocalOverrideWord == "" then
             local currentText = textbox.Text
             
-            -- Когда вы печатаете вручную, текстбокс не пустой. Мы принудительно пишем его в WordValue,
-            -- если TypoFix выключен, чтобы не ломать логику исправления ошибок.
-            if not Config.TypoFix and #currentText >= 1 and not IsBusy then
+            -- СТРОГОЕ ОГРАНИЧЕНИЕ: Работает исключительно когда AutoType выключен (OFF)
+            if not Config.AutoType and not Config.TypoFix and #currentText >= 1 and not IsBusy then
                 if WordValue.Value ~= currentText then
                     WordValue.Value = currentText
                 end

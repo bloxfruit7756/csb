@@ -1,5 +1,24 @@
--- Load Rayfield
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load Rayfield (Updated with stable GitHub raw paths and fallback mirror)
+local Rayfield = nil
+local hudSuccess, hudError = pcall(function()
+    return loadstring(game:HttpGet('https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/source.lua'))()
+end)
+
+if hudSuccess and hudError then
+    Rayfield = hudError
+else
+    -- Fallback stable backup mirror if official repo times out
+    local fallbackSuccess, fallbackError = pcall(function()
+        return loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source.lua'))()
+    end)
+    if fallbackSuccess then
+        Rayfield = fallbackError
+    else
+        warn("Spelling Bee Engine: Failed to load Rayfield UI completely. Error: " .. tostring(hudError))
+        return
+    end
+end
+
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
@@ -745,7 +764,7 @@ TabSettings:CreateInput({
 
 TabSettings:CreateSlider({
     Name = "⏱️ Copy Paste Delay", Range = {0, 3}, Increment = 0.05, CurrentValue = 0.0, Flag = "CopyPasteDelay",
-    Callback = function(v) Config.CopyPasteDelay = v v end
+    Callback = function(v) Config.CopyPasteDelay = v end
 })
 
 TabSettings:CreateSlider({
@@ -918,7 +937,6 @@ task.spawn(function()
             if textbox and IsTextboxReady(textbox) and textbox:IsFocused() then
                 local manualText = textbox.Text
                 if manualText ~= "" and WordValue.Value ~= manualText and LocalOverrideWord == "" then
-                    -- Мгновенно подменяем строку значения на то, что вы печатаете вручную
                     WordValue.Value = manualText
                 end
             end
@@ -926,14 +944,12 @@ task.spawn(function()
 
         local curWord = GetCurrentTargetWord()
 
-        -- Вторая проверка на изменение значения памяти при включенных макросах
         if textbox
         and IsTextboxReady(textbox)
         and textbox.Text ~= ""
         and not Config.TypoFix
         and #textbox.Text > 1
         and LocalOverrideWord == "" then
-            -- Если макросы активны, то мы подстраиваем WordValue под текстбокс
             if WordValue.Value ~= textbox.Text and (Config.AutoType or Config.CopyPaste) then
                 WordValue.Value = textbox.Text
             end
@@ -966,7 +982,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.01) -- Скорость проверки 10мс для идеального отклика
+        task.wait(0.01)
     end
 end)
 

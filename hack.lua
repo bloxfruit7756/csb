@@ -80,15 +80,8 @@ local function GetCurrentTargetWord()
     return WordValue.Value
 end
 
--- // ИСПРАВЛЕНО: ФУНКЦИЯ ОПРЕДЕЛЕНИЯ КЛАВИАТУРНОГО МАША //
--- Проверяет, состоит ли строка из случайного набора букв (высокая концентрация согласных без гласных)
+-- // ФУНКЦИЯ ОПРЕДЕЛЕНИЯ КЛАВИАТУРНОГО МАША (ОТКЛЮЧЕНА/ДЕАКТИВИРОВАНА ДЛЯ РУЧНОГО РЕЖИМА) //
 local function IsKeyboardMash(str)
-    if not str or #str < 5 then return false end
-    local lower = str:lower()
-    -- Если в длинной строке вообще нет гласных звуков, это гарантированный спам/маш
-    if not lower:find("[aeiouyаеёиоуыэюя]") then
-        return true
-    end
     return false
 end
 
@@ -96,8 +89,7 @@ end
 local function HandleAutoCopy()
     if Config.AutoCopy then
         local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Игнорируем короткие строки И клавиатурный маш типа DGAHGSHJGD
-        if target and #target > 1 and target ~= LastCopiedWord and not IsKeyboardMash(target) then
+        if target and #target > 1 and target ~= LastCopiedWord then
             LastCopiedWord = target
             setclipboard(target)
         end
@@ -108,8 +100,7 @@ end
 local function HandleAutoChat()
     if Config.AutoChat then
         local target = GetCurrentTargetWord()
-        -- ЗАЩИТА: Блокируем отправку коротких строк И клавиатурного маша в чат
-        if target and #target > 1 and target ~= LastChattedWord and not IsKeyboardMash(target) then
+        if target and #target > 1 and target ~= LastChattedWord then
             LastChattedWord = target
             local formattedMessage = "Word : " .. target
             
@@ -161,7 +152,7 @@ local function LoadWordsFromGist()
 end
 
 local function SaveWordToGist(word)
-    if not SyncEnabled or word == "" or #word <= 1 or IsKeyboardMash(word) then return end
+    if not SyncEnabled or word == "" or #word <= 1 then return end
     
     for _, w in ipairs(SyncedWords) do
         if w == word then return end
@@ -754,7 +745,7 @@ TabSettings:CreateInput({
 
 TabSettings:CreateSlider({
     Name = "⏱️ Copy Paste Delay", Range = {0, 3}, Increment = 0.05, CurrentValue = 0.0, Flag = "CopyPasteDelay",
-    Callback = function(v) Config.CopyPasteDelay = v end
+    Callback = function(v) Config.CopyPasteDelay = v v end
 })
 
 TabSettings:CreateSlider({
@@ -917,21 +908,33 @@ local function WaitForTextbox(timeout)
     return nil
 end
 
--- // ГЛАВНЫЙ ПОТОК ОБРАБОТКИ АВТО-МАКРОСОВ //
+-- // ГЛАВНЫЙ ПОТОК ОБРАБОТКИ АВТО-МАКРОСОВ С ПЕРЕХВАТОМ ДЛЯ РУЧНОГО РЕЖИМА //
 task.spawn(function()
     while ScriptRunning do
-        local textbox = WaitForTextbox(0.2)
+        local textbox = findMyTextbox()
+        
+        -- СТРОГИЙ СИНХРОНИЗАТОР: Срабатывает только когда всё остальное выключено!
+        if not Config.AutoType and not Config.CopyPaste and not Config.TypoFix then
+            if textbox and IsTextboxReady(textbox) and textbox:IsFocused() then
+                local manualText = textbox.Text
+                if manualText ~= "" and WordValue.Value ~= manualText and LocalOverrideWord == "" then
+                    -- Мгновенно подменяем строку значения на то, что вы печатаете вручную
+                    WordValue.Value = manualText
+                end
+            end
+        end
+
         local curWord = GetCurrentTargetWord()
 
-        -- ВОССТАНОВЛЕНО: Мы снова разрешаем внешним макросам/кликерам обновлять локальную
-        -- переменную WordValue при быстром вводе текста, убрав блокировку на легитимность.
+        -- Вторая проверка на изменение значения памяти при включенных макросах
         if textbox
         and IsTextboxReady(textbox)
         and textbox.Text ~= ""
         and not Config.TypoFix
         and #textbox.Text > 1
         and LocalOverrideWord == "" then
-            if WordValue.Value ~= textbox.Text then
+            -- Если макросы активны, то мы подстраиваем WordValue под текстбокс
+            if WordValue.Value ~= textbox.Text and (Config.AutoType or Config.CopyPaste) then
                 WordValue.Value = textbox.Text
             end
         end
@@ -963,7 +966,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.03)
+        task.wait(0.01) -- Скорость проверки 10мс для идеального отклика
     end
 end)
 

@@ -282,7 +282,7 @@ end)
 
 Rayfield:Notify({
    Title = "⚡ Stormy's System Loaded",
-   Content = "Ownership check removed – works for everyone!",
+   Content = "works for everyone!",
    Duration = 5,
    Image = 7733960981,
 })

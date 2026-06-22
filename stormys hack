@@ -1,0 +1,288 @@
+-- ✨ Ensure the UI library is loaded properly
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- 🖥️ Base configuration for the Window
+local Window = Rayfield:CreateWindow({
+   Name = "⚡ Stormy's Spelling Bee 🐝",
+   LoadingTitle = "🌪️ Loading Stormy's Engine...",
+   LoadingSubtitle = "by Developer",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "StormysSpelling",
+      FileName = "Config"
+   },
+   Discord = {Enabled = false, Invite = "", RememberJoins = true},
+   KeySystem = false
+})
+
+-- ⚙️ State Variables
+local AutoTypeEnabled = true
+local CopyNPasteEnabled = false
+local AutoTypeCPS = 20 
+local AutoTypeWPM = 200 
+local WPMToggleEnabled = false 
+local currentSessionID = 0 
+local lastReceivedWord = "" 
+
+-- 👥 Player Identity Verification Matrix
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+-- ❌ OWNERSHIP CHECK REMOVED – now works for everyone
+-- local isTargetOwner = false
+-- local function checkOwnership()
+--     if localPlayer then
+--         local name = localPlayer.Name
+--         return (name == "artemtolk777" or name == "Bloxfruit_7756" or name == "RobloxBotForSpelling")
+--     end
+--     return false
+-- end
+-- isTargetOwner = checkOwnership()
+-- Instead we set a constant true
+local isTargetOwner = true   -- always allowed
+
+-- 📦 Explicit Folder Path Solution: ReplicatedStorage -> ReplicatedStorage (Folder) -> replayWord
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local wordValueInstance = nil
+
+-- Safely search for the nested folder child name
+local nestedFolder = replicatedStorage:FindFirstChild("ReplicatedStorage")
+if nestedFolder then
+    wordValueInstance = nestedFolder:FindFirstChild("replayWord")
+else
+    -- Fallback if it was a standard folder with a different index or directly in root
+    wordValueInstance = replicatedStorage:FindFirstChild("replayWord")
+end
+
+-- 🏠 Create the Home Tab
+local HomeTab = Window:CreateTab("🏠 Home", 7733960981)
+
+-- 📊 Live Status & Debug Matrix
+local StatusLabel = HomeTab:CreateLabel("🔵 Status: Idle")
+local ValueFoundLabel = HomeTab:CreateLabel("🔍 replayWord Found: Checking...")
+local TextBoxFoundLabel = HomeTab:CreateLabel("⌨️ TextBox Present on Screen: Checking...")
+local UserCheckLabel = HomeTab:CreateLabel("👤 User Allowed to Type: YES (Owner check removed)")
+local WordLabel = HomeTab:CreateLabel("📝 Raw Word: Waiting for Update...")
+local LengthLabel = HomeTab:CreateLabel("📏 Length: 0 characters")
+
+-- 🎯 Forward Declaration
+local processCurrentWord
+
+-- 🎯 TextBox Target Retriever (PlayerGui -> ScreenGui -> typeFrame -> typeBox)
+local function getTargetTextBox()
+    if not localPlayer then return nil end
+    local playerGui = localPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return nil end
+    
+    local screenGui = playerGui:FindFirstChild("ScreenGui")
+    if screenGui and screenGui:IsA("ScreenGui") then
+        local typeFrame = screenGui:FindFirstChild("typeFrame")
+        if typeFrame and typeFrame:IsA("Frame") then
+            local typeBox = typeFrame:FindFirstChild("typeBox")
+            
+            if typeBox and typeBox:IsA("TextBox") then
+                -- 🛡️ Visibility and absolute geometry constraints
+                local isFullyVisible = screenGui.Enabled and typeFrame.Visible and typeBox.Visible 
+                local hasPhysicalSize = typeBox.AbsoluteSize.X > 5 and typeBox.AbsoluteSize.Y > 5
+                
+                if isFullyVisible and hasPhysicalSize then
+                    TextBoxFoundLabel:Set("✅ TextBox Active & Accessible: YES")
+                    return typeBox
+                else
+                    TextBoxFoundLabel:Set("⏳ TextBox Status: Hidden, Scaling, or Disabled Frame")
+                    return nil
+                end
+            end
+        end
+    end
+    
+    TextBoxFoundLabel:Set("❌ TextBox Present on Screen: NO (Path Not Found)")
+    return nil
+end
+
+-- 📋 Function to trigger raw copy operations
+local function copyCurrentWordToClipboard()
+    if lastReceivedWord and lastReceivedWord ~= "" then
+        if setclipboard then setclipboard(lastReceivedWord)
+        elseif toclipboard then toclipboard(lastReceivedWord) end
+        Rayfield:Notify({Title = "📋 Copied Raw!", Content = "Raw text copied to clipboard.", Duration = 2})
+    end
+end
+
+-- 🔘 UI Interactive Elements
+HomeTab:CreateButton({
+   Name = "📋 Copy Current Word",
+   Callback = function() copyCurrentWordToClipboard() end,
+})
+
+HomeTab:CreateToggle({
+   Name = "🤖 Auto Type",
+   CurrentValue = true,
+   Flag = "AutoTypeToggle",
+   Callback = function(Value)
+      AutoTypeEnabled = Value
+      currentSessionID = currentSessionID + 1 
+      
+      if Value then
+          if lastReceivedWord and lastReceivedWord ~= "" then processCurrentWord(lastReceivedWord) end
+      else
+         StatusLabel:Set("🔵 Status: Idle")
+      end
+   end,
+})
+
+HomeTab:CreateInput({
+   Name = "⚡ Auto Type CPS",
+   PlaceholderText = "20",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      AutoTypeCPS = (num and num >= 1) and num or 20
+   end,
+})
+
+HomeTab:CreateToggle({
+   Name = "⏱️ Use Exact WPM Speed",
+   CurrentValue = false,
+   Flag = "WPMToggle",
+   Callback = function(Value)
+      WPMToggleEnabled = Value
+   end,
+})
+
+HomeTab:CreateInput({
+   Name = "⏱️ Auto Type WPM",
+   PlaceholderText = "200",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      AutoTypeWPM = (num and num >= 1) and num or 200
+   end,
+})
+
+HomeTab:CreateToggle({
+   Name = "📋 Auto Copy n Paste",
+   CurrentValue = false,
+   Flag = "CopyNPasteToggle",
+   Callback = function(Value) CopyNPasteEnabled = Value end,
+})
+
+-- 🚀 Core Automation Logic Handler
+processCurrentWord = function(rawWord)
+    if not rawWord or rawWord == "" then return end
+    
+    lastReceivedWord = rawWord
+    WordLabel:Set("📝 Raw Word: " .. rawWord)
+    LengthLabel:Set("📏 Length: " .. string.len(rawWord) .. " characters")
+    
+    currentSessionID = currentSessionID + 1
+    local mySessionID = currentSessionID
+    
+    -- ✅ Ownership check removed – always allowed
+    -- if not isTargetOwner then
+    --     StatusLabel:Set("⛔ Status: Blocked (Unauthorized User)")
+    --     return
+    -- end
+
+    local textBox = getTargetTextBox()
+    if not textBox then
+        StatusLabel:Set("⏳ Status: Blocked (Waiting for Active TextBox)")
+        return
+    end
+
+    task.spawn(function()
+        if CopyNPasteEnabled then
+            if setclipboard then setclipboard(rawWord)
+            elseif toclipboard then toclipboard(rawWord) end
+        end
+        
+        if AutoTypeEnabled then
+            StatusLabel:Set("⚡ Status: Outputting String Data...")
+            textBox.Text = ""
+            textBox:CaptureFocus()
+            
+            local delayTime = 1 / math.max(1, AutoTypeCPS)
+            if WPMToggleEnabled then
+                delayTime = 60 / (AutoTypeWPM * 5)
+            end
+            
+            for i = 1, #rawWord do
+                if not AutoTypeEnabled or currentSessionID ~= mySessionID or not textBox.Visible or textBox.AbsoluteSize.Y <= 5 then 
+                    break 
+                end
+                textBox.Text = string.sub(rawWord, 1, i)
+                task.wait(delayTime)
+            end
+            
+            -- 🔥 ENTER KEY SUBMISSION KEYSTROKE
+            if currentSessionID == mySessionID and textBox.Visible and textBox.AbsoluteSize.Y > 5 then
+                task.wait(0.04) 
+                local vim = game:GetService("VirtualInputManager")
+                if vim then
+                    if not textBox:IsFocused() then textBox:CaptureFocus() end
+                    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    task.wait(0.01)
+                    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                else
+                    textBox:ReleaseFocus(true)
+                end
+                StatusLabel:Set("🔵 Status: Idle")
+            end
+        else
+            StatusLabel:Set("🔵 Status: Idle")
+        end
+    end)
+end
+
+-- ⚡ Continuous Tracking and Dynamic Hook Verification Loop
+task.spawn(function()
+    local lastBoxState = false
+    while true do
+        -- Ownership check removed – always true
+        isTargetOwner = true
+        
+        -- Update user verification interface label
+        UserCheckLabel:Set("👤 User Allowed to Type: ✅ YES (" .. localPlayer.Name .. ")")
+        
+        -- Dynamic word validation updates 
+        if not wordValueInstance or not wordValueInstance.Parent then
+            local checkNested = replicatedStorage:FindFirstChild("ReplicatedStorage")
+            if checkNested then
+                wordValueInstance = checkNested:FindFirstChild("replayWord")
+            else
+                wordValueInstance = replicatedStorage:FindFirstChild("replayWord")
+            end
+        end
+
+        if wordValueInstance then
+            ValueFoundLabel:Set("✅ replayWord Found: YES")
+        else
+            ValueFoundLabel:Set("❌ replayWord Found: NO (Scanning runtime memory...)")
+        end
+        
+        -- TextBox loop verification and string output updates
+        local currentTextBox = getTargetTextBox()
+        local boxStateNow = (currentTextBox ~= nil)
+        
+        if boxStateNow ~= lastBoxState then
+            lastBoxState = boxStateNow
+            if boxStateNow and wordValueInstance and wordValueInstance.Value ~= "" then
+                processCurrentWord(wordValueInstance.Value)
+            end
+        end
+        
+        -- Run an immediate processing scan if value updates
+        if wordValueInstance and wordValueInstance.Value ~= lastReceivedWord then
+            processCurrentWord(wordValueInstance.Value)
+        end
+        
+        task.wait(0.1) 
+    end
+end)
+
+Rayfield:Notify({
+   Title = "⚡ Stormy's System Loaded",
+   Content = "Ownership check removed – works for everyone!",
+   Duration = 5,
+   Image = 7733960981,
+})

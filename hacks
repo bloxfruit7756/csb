@@ -64,6 +64,7 @@ local autoSlow = false
 local antiAfk = false
 local autoCopy = false
 local autoCorrect = false
+local seenWord = ""
 local turnActive = false
 local typedThisTurn = false
 local lastWord = ""
@@ -79,6 +80,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, rwStat, diffStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 
 -- FPS sampler for auto-slow
 local fpsAvg = 60
@@ -156,16 +225,11 @@ local function noteWord(w)
     typedThisTurn = true
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)"); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
-    if autoCopy and w ~= "" then
-        pcall(function()
-            local fn = _G["setclipboard"]
-            if type(fn) == "function" then fn(w) end
-        end)
-    end
+    if autoCopy and w ~= "" then copyText(w) end
     if autoRepeat then
         local pr = RS:FindFirstChild("PlayWordAgain")
         if pr then pcall(function() pr:FireServer() end) end
@@ -296,7 +360,7 @@ end
 
 -- ================= SPELLER TAB (1-17) =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -447,6 +511,10 @@ TabSpell:CreateButton({ name = "Check my ban risk", description = "Rates your cu
     say("Ban risk: " .. risk .. " - " .. why)
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB (18-29) =================
 TabRound:CreateButton({ name = "Repeat word audio", description = "Replays the spoken word", callback = function()
     local pr = RS:FindFirstChild("PlayWordAgain")
@@ -469,11 +537,7 @@ avgStat = TabRound:CreateStat({ name = "Avg CPS achieved", value = 0 })
 TabRound:CreateButton({ name = "Copy current word", description = "Copies to clipboard", callback = function()
     local w = currentWord()
     if w ~= "" then
-        local done = false
-        pcall(function()
-            local fn = _G["setclipboard"]
-            if type(fn) == "function" then fn(w) done = true end
-        end)
+        local done = copyText(w)
         say(done and "Copied: " .. w or "Clipboard unavailable.")
     else
         say("No active word.")
@@ -483,10 +547,7 @@ TabRound:CreateToggle({ name = "Auto-copy current word", description = "Copies e
     autoCopy = v
     if v then
         local w0 = currentWord()
-        if w0 ~= "" then pcall(function()
-            local fn = _G["setclipboard"]
-            if type(fn) == "function" then fn(w0) end
-        end) end
+        if w0 ~= "" then copyText(w0) end
         say("Auto-copy ON.")
     else
         say("Auto-copy OFF.")
@@ -616,6 +677,20 @@ TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, de
     window:Unload()
 end })
 
+-- Word watcher: always shows the current word, even while spectating
+-- with auto-spell off. Typing/history/stats stay on the auto-spell path.
+task.spawn(function()
+    while true do
+        local w = currentWord()
+        if w ~= "" and w ~= seenWord then
+            seenWord = w
+            if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)"); showBigWord(w) end) end
+            if autoCopy then copyText(w) end
+        end
+        task.wait(0.4)
+    end
+end)
+
 say("Loaded: 50 features. Turn on Auto-spell and play.")
 ]],
     cups = [[--!nonstrict
@@ -681,6 +756,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, winsStat, typedStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 
 -- FPS sampler for auto-slow
 local fpsAvg = 60
@@ -804,7 +947,7 @@ local function noteWord(w)
     lastWordAt = os.clock()
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)"); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
@@ -1003,7 +1146,7 @@ end
 
 -- ================= SPELLER TAB (1-17) =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -1138,6 +1281,10 @@ TabSpell:CreateToggle({ name = "Ignore turn gate (bonus)", description = "Type e
     ignoreGate = v
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB (18-30) =================
 TabRound:CreateButton({ name = "Show answer now", description = "Logs + notifies the pending word", callback = function()
     local w = currentWord()
@@ -1418,6 +1565,74 @@ local log, wordBox, adminBox, historyBox, typingBox = nil, nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, boardStat, adminStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 local autoToggle = nil
 
 -- FPS sampler for auto-slow
@@ -1649,7 +1864,7 @@ local function noteWord(w, src)
     lastWordAt = os.clock()
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)" .. (src and (" [" .. src .. "]") or "")) end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)" .. (src and (" [" .. src .. "]") or "")); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
@@ -1847,7 +2062,7 @@ end
 
 -- ================= SPELLER TAB (1-17) =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -1994,6 +2209,10 @@ TabSpell:CreateToggle({ name = "Ignore turn gate (bonus)", description = "Type e
     ignoreGate = v
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB (18-30) =================
 TabRound:CreateButton({ name = "Replay word audio", description = "Best effort: asks the server to replay the word sound", callback = function()
     local rem = RS:FindFirstChild("RepeatSoundEvent")
@@ -2233,6 +2452,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, rwStat, diffStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 
 local fpsAvg = 60
 pcall(function()
@@ -2359,7 +2646,7 @@ local function noteWord(w)
     if wordBox then pcall(function()
         local extra = ""
         if #lastVariants > 1 then extra = "  [also: " .. table.concat(lastVariants, " / ", 2) .. "]" end
-        wordBox:Set(w .. "  (" .. #w .. " letters)" .. extra)
+        wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)" .. extra); showBigWord(w)
     end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
@@ -2505,7 +2792,7 @@ end
 
 -- ================= SPELLER TAB =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -2519,7 +2806,7 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
                     turnActive = false
                     typedThisTurn = false
                     if w ~= "" and w ~= lastWord and not typing then
-                        if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters) [waiting turn]") end) end
+                        if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters) [waiting turn]"); showBigWord(w) end) end
                     end
                 else
                     if not turnActive then
@@ -2637,6 +2924,10 @@ TabSpell:CreateButton({ name = "Check my ban risk", description = "Rates your cu
     say("Ban risk: " .. risk .. " - " .. why)
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB =================
 TabRound:CreateButton({ name = "Repeat word audio", description = "Replays the spoken word", callback = function()
     task.spawn(function() repeatAudio() end)
@@ -2889,6 +3180,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, heardStat, submitStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 local autoToggle = nil
 
 -- FPS sampler for auto-slow
@@ -3054,7 +3413,7 @@ local function noteWord(w, src)
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
     if heardStat then pcall(function() heardStat:Set(heardWords) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)" .. (src and (" [" .. src .. "]") or "")) end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)" .. (src and (" [" .. src .. "]") or "")); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
@@ -3252,7 +3611,7 @@ end
 
 -- ================= SPELLER TAB (1-17) =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -3392,6 +3751,10 @@ TabSpell:CreateToggle({ name = "Ignore turn gate (bonus)", description = "Type e
     ignoreGate = v
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB (18-30) =================
 TabRound:CreateButton({ name = "Replay word audio", description = "Asks the server to replay the word sound", callback = function()
     local rem = RS:FindFirstChild("RepeatWordEvent")
@@ -3637,6 +4000,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, rwStat, diffStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 
 local fpsAvg = 60
 pcall(function()
@@ -3722,7 +4153,7 @@ local function noteWord(w)
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
     if rwStat then pcall(function() rwStat:Set(rounds) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)"); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
@@ -3866,7 +4297,7 @@ end
 
 -- ================= SPELLER TAB (1-17) =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -3880,7 +4311,7 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
                     turnActive = false
                     typedThisTurn = false
                     if w ~= "" and w ~= lastWord and not typing then
-                        if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters) [waiting turn]") end) end
+                        if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters) [waiting turn]"); showBigWord(w) end) end
                     end
                 else
                     if not turnActive then
@@ -3998,6 +4429,10 @@ TabSpell:CreateButton({ name = "Check my ban risk", description = "Rates your cu
     say("Ban risk: " .. risk .. " - " .. why)
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB (18-29) =================
 TabRound:CreateButton({ name = "Repeat word audio", description = "Replays the spoken word", callback = function()
     task.spawn(function() repeatAudio() end)
@@ -4198,6 +4633,74 @@ local TabMain = window:CreateTab({ name = "Typer" })
 
 local log = TabMain:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
 local function say(m) pcall(function() log:Append(m) end) end
+
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
 local wordsStat = TabMain:CreateStat({ name = "Words done", value = 0 })
 local lettersStat = TabMain:CreateStat({ name = "Letters", value = 0 })
 local uptimeStat = TabMain:CreateStat({ name = "Uptime", value = 0, suffix = "s" })
@@ -4211,6 +4714,7 @@ local wpm = 99999
 local minSecs = 1.5
 local autoRetry = true
 local antiAfk = false
+local autoCopy = false
 local words, letters = 0, 0
 local correctCount, failCount = 0, 0
 local startTime = os.clock()
@@ -4233,6 +4737,7 @@ local function typeAndSubmit(word, forceSlow)
     local box = inputBox()
     if not box then say("No input box (not seated at a round?).") return end
     lastWord = word
+    showBigWord(word)
     retries = forceSlow and (retries + 1) or 0
     -- Paced trail: every char fires the game's own TypingUpdate, and the
     -- whole word always takes >= minSecs so instant submits stop failing.
@@ -4286,6 +4791,8 @@ end)
 
 WordSelector.OnClientEvent:Connect(function(word)
     if not word or word == "" then return end
+    showBigWord(tostring(word))
+    if autoCopy then copyText(tostring(word)) end
     if not autoOn then
         lastWord = word
         say("Word arrived (auto OFF): " .. tostring(word))
@@ -4308,6 +4815,21 @@ TabMain:CreateSlider({ name = "Min seconds per word", description = "Whole word 
 end })
 TabMain:CreateToggle({ name = "Auto-retry on reject", description = "Re-submits slower (up to 2 retries) when the game rejects", value = true, forgetState = true, callback = function(v)
     autoRetry = v
+end })
+TabMain:CreateButton({ name = "Copy current word", description = "Copies to clipboard", callback = function()
+    if lastWord ~= "" then
+        say(copyText(lastWord) and ("Copied: " .. lastWord) or "Clipboard unavailable.")
+    else
+        say("No active word.")
+    end
+end })
+TabMain:CreateToggle({ name = "Auto-copy words", description = "Copies every word as it arrives", value = false, forgetState = true, callback = function(v)
+    autoCopy = v
+    say(v and "Auto-copy ON." or "Auto-copy OFF.")
+end })
+TabMain:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
 end })
 TabMain:CreateButton({ name = "Type last word again", description = "Re-submits the last received word", callback = function()
     task.spawn(function()
@@ -4401,6 +4923,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, rwStat, diffStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 
 -- FPS sampler for auto-slow
 local fpsAvg = 60
@@ -4548,7 +5138,7 @@ local function noteWord(w)
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
     if rwStat then pcall(function() rwStat:Set(rounds) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)"); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
@@ -4711,7 +5301,7 @@ end
 
 -- ================= SPELLER TAB (1-17) =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -4726,7 +5316,7 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
                     typedThisTurn = false
                     if w ~= "" and w ~= lastWord and autoRepeat and not typing then
                         -- new word arrived but not our turn yet: still log it
-                        if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters) [waiting turn]") end) end
+                        if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters) [waiting turn]"); showBigWord(w) end) end
                     end
                 else
                     if not turnActive then
@@ -4845,6 +5435,10 @@ TabSpell:CreateButton({ name = "Check my ban risk", description = "Rates your cu
     say("Ban risk: " .. risk .. " - " .. why)
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB (18-29) =================
 TabRound:CreateButton({ name = "Repeat word audio", description = "Replays the spoken word", callback = function()
     task.spawn(function() repeatAudio() end)
@@ -5076,6 +5670,74 @@ local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
 local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
 local avgStat, rwStat, diffStat = nil, nil, nil
 local cpsInput = nil
+-- Big word panel + wrapping + robust clipboard.
+local WRAP_AT = 45
+local bigWordOn = true
+local wordPanel, wordPanelLabel = nil, nil
+local function wrapWord(s)
+    s = tostring(s or "")
+    if #s <= WRAP_AT then return s end
+    local out = {}
+    for i = 1, #s, WRAP_AT do table.insert(out, s:sub(i, i + WRAP_AT - 1)) end
+    return table.concat(out, "\n")
+end
+local function copyText(t)
+    local done = false
+    pcall(function()
+        local fn = setclipboard
+        if type(fn) ~= "function" and getgenv then fn = getgenv().setclipboard end
+        if type(fn) ~= "function" then fn = toclipboard end
+        if type(fn) ~= "function" then fn = _G["setclipboard"] end
+        if type(fn) == "function" then fn(t) done = true end
+    end)
+    return done
+end
+local function buildWordPanel()
+    pcall(function()
+        local h = nil
+        pcall(function() h = gethui and gethui() end)
+        local parent = h or game:GetService("CoreGui")
+        local g = Instance.new("ScreenGui")
+        g.Name = "BeeBigWord"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.DisplayOrder = 999
+        g.Parent = parent
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0)
+        f.Position = UDim2.new(0.5, 0, 0, 8)
+        f.Size = UDim2.new(0, 620, 0, 120)
+        f.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        f.BackgroundTransparency = 0.25
+        f.BorderSizePixel = 0
+        f.Parent = g
+        local cn = Instance.new("UICorner")
+        cn.CornerRadius = UDim.new(0, 10)
+        cn.Parent = f
+        local lbl = Instance.new("TextLabel")
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(1, -20, 1, -12)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextWrapped = true
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeTransparency = 0.6
+        lbl.Text = ""
+        lbl.Parent = f
+        local con = Instance.new("UITextSizeConstraint")
+        con.MaxTextSize = 56
+        con.MinTextSize = 12
+        con.Parent = lbl
+        wordPanel, wordPanelLabel = g, lbl
+    end)
+end
+local function showBigWord(w)
+    if not bigWordOn then return end
+    if not wordPanelLabel then buildWordPanel() end
+    pcall(function() wordPanelLabel.Text = wrapWord(w) end)
+end
+
 
 local fpsAvg = 60
 pcall(function()
@@ -5188,7 +5850,7 @@ local function noteWord(w)
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
     if rwStat then pcall(function() rwStat:Set(rounds) end) end
-    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
+    if wordBox then pcall(function() wordBox:Set(wrapWord(w) .. "  (" .. #w .. " letters)"); showBigWord(w) end) end
     table.insert(history, w)
     if #history > 30 then table.remove(history, 1) end
     if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
@@ -5332,7 +5994,7 @@ end
 
 -- ================= SPELLER TAB =================
 log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
-wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 120, maxLines = 12 })
 
 local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
     autoOn = v
@@ -5349,7 +6011,7 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
                     -- is not always re-pushed, and clearing ate the answer.
                     if not typing then
                         local d = currentDef()
-                        if d ~= "" and wordBox then pcall(function() wordBox:Set("waiting... [" .. d:sub(1, 60) .. "]") end) end
+                        if d ~= "" and wordBox then pcall(function() wordBox:Set(wrapWord("waiting... [" .. d:sub(1, 60) .. "]")) end) end
                     end
                 else
                     local freshTurn = false
@@ -5370,7 +6032,7 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
                         typeWord(string.lower(w))
                     elseif w == "" and not typing then
                         local d = currentDef()
-                        if d ~= "" and wordBox then pcall(function() wordBox:Set("waiting for word... [" .. d:sub(1, 60) .. "]") end) end
+                        if d ~= "" and wordBox then pcall(function() wordBox:Set(wrapWord("waiting for word... [" .. d:sub(1, 60) .. "]")) end) end
                     end
                 end
                 if uptimeStat then pcall(function() uptimeStat:Set(math.floor(os.clock() - startTime)) end) end
@@ -5478,6 +6140,10 @@ TabSpell:CreateButton({ name = "Check my ban risk", description = "Rates your cu
     say("Ban risk: " .. risk .. " - " .. why)
 end })
 
+local bigWordToggle = TabSpell:CreateToggle({ name = "Big word panel", description = "Large overlay showing the current word", value = true, forgetState = true, callback = function(v)
+    bigWordOn = v
+    pcall(function() if wordPanel then wordPanel.Enabled = v end end)
+end })
 -- ================= ROUND TAB =================
 TabRound:CreateButton({ name = "Repeat word audio", description = "Replays the spoken word", callback = function()
     task.spawn(function() repeatAudio() end)

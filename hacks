@@ -665,7 +665,8 @@ local autoSlow = false
 local antiAfk = false
 local ignoreGate = false
 local autoCopy = false
-local wasVisible = false
+local lastWordAt = 0
+local hideAt = 0
 local lastWord = ""
 local attempted = ""
 local typing = false
@@ -761,11 +762,37 @@ local function findWordByDefinition(def)
             if ok and type(mod) == "table" then WordsCache = mod end
         end
     end
-    if not WordsCache then return nil end
+    if not WordsCache then
+        say("Feed: Words module missing - auto-spell is blind.")
+        return nil
+    end
+    local function pick(e)
+        if type(e[1]) == "string" and e[1] ~= "" then return e[1] end
+        if type(e[1]) == "table" then
+            for _, v in ipairs(e[1]) do
+                if type(v) == "string" and v ~= "" then return v end
+            end
+        end
+        return nil
+    end
     for _, list in pairs(WordsCache) do
         if type(list) == "table" then
             for _, e in ipairs(list) do
-                if type(e) == "table" and e[4] == def then return e[1] end
+                if type(e) == "table" and e[4] == def then
+                    local w = pick(e)
+                    if w then return w end
+                end
+            end
+        end
+    end
+    local dl = string.lower(def:gsub("^%s+", ""):gsub("%s+$", ""))
+    for _, list in pairs(WordsCache) do
+        if type(list) == "table" then
+            for _, e in ipairs(list) do
+                if type(e) == "table" and type(e[4]) == "string" and string.lower(e[4]) == dl then
+                    local w = pick(e)
+                    if w then return w end
+                end
             end
         end
     end
@@ -774,6 +801,7 @@ end
 
 local function noteWord(w)
     lastWord = w
+    lastWordAt = os.clock()
     rounds = rounds + 1
     if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
     if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
@@ -944,11 +972,16 @@ end
 local ShowDef = RS:WaitForChild("ShowDefinition")
 ShowDef.OnClientEvent:Connect(function(word, def)
     word = tostring(word or "")
-    if word == "" then
+    if word:find("%s") then
+        word = findWordByDefinition(word:gsub("^Definition:%s*", "")) or ""
+    elseif word == "" then
         local sg = spellGui()
         local dl = sg and sg:FindFirstChild("DefinitionLabel")
         local txt = dl and dl.Text or ""
         word = findWordByDefinition(txt:gsub("^Definition:%s*", "")) or ""
+    end
+    if word == "" then
+        say("Feed: definition arrived but no word matched - holding (stale word blocked).")
     end
     if word ~= "" then
         noteWord(word)
@@ -961,8 +994,10 @@ end)
 local HideDef = RS:FindFirstChild("HideDefinition")
 if HideDef then
     HideDef.OnClientEvent:Connect(function()
+        if os.clock() - lastWordAt < 2 then return end
         lastWord = ""
         attempted = ""
+        hideAt = os.clock()
     end)
 end
 
@@ -978,10 +1013,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
             while autoOn do
                 local w = currentWord()
                 local vis = paperVisible()
-                if vis and not wasVisible then attempted = "" end
-                wasVisible = vis
                 if w ~= "" and vis and not typing then
-                    if w ~= attempted then
+                    if w ~= attempted and lastWordAt > hideAt then
                         attempted = w
                         typeWord(w)
                     end
@@ -1024,6 +1057,7 @@ TabSpell:CreateButton({ name = "PASTE NOW", description = "Forces cps=0 and type
             return
         end
         noteWord(w)
+        attempted = w
         typeWord(w)
     end)
 end })
@@ -1249,6 +1283,7 @@ TabUtil:CreateButton({ name = "Type current word now", description = "One-shot, 
             return
         end
         noteWord(w)
+        attempted = w
         local wasAuto = autoOn
         autoOn = true
         typeWord(w)
@@ -4986,6 +5021,639 @@ end })
 
 say("Loaded: 50 features (revamp build). Turn on Auto-spell and play. Word solver: " .. tostring(#byDef) .. " defs cached.")
 ]],
+    calamity = [[-- 1x1x1's Spelling Bee AutoTyper -- Rayfield Gen2 edition (1x1x1's Spelling Bee [CALAMITY])
+-- Word = GetWordForClientEvent/SelectWordEvent push (cached) | Box = Main.SpellingGui.SpellingBox | Turn = box Visible
+-- Mirror = TypingEvent(text,false) | Submit = TypingEvent(text,true) or game's Enter | Repeat = ReplaySoundEvent
+
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+
+local window = Rayfield:CreateWindow({
+    name = "1x1x1's Spelling Bee AutoTyper",
+    subtitle = "Rayfield Gen2",
+    sidebarLayout = true,
+})
+
+local TabSpell = window:CreateTab({ name = "Speller" })
+local TabRound = window:CreateTab({ name = "Round" })
+local TabUtil = window:CreateTab({ name = "Utility" })
+local TabSafe = window:CreateTab({ name = "Safety" })
+
+-- ================= STATE =================
+local autoOn = false
+local cps = 7
+local burstOn = true
+local burstN = 5
+local burstPauseCs = 30
+local preDelayCs = 30
+local submitDelayCs = 30
+local typoRate = 5
+local jitterOn = true
+local typosOn = true
+local ghostMode = false
+local remoteSubmit = false
+local autoRepeat = false
+local autoFocus = false
+local focusPause = false
+local autoSlow = false
+local antiAfk = false
+local autoCopy = false
+local turnActive = false
+local typedThisTurn = false
+local potato = false
+local lastWord = ""
+local typing = false
+local panicStop = false
+local maxLen = 0
+local rounds, lettersTotal, typeTimeTotal, bestWpm = 0, 0, 0, 0
+local startTime = os.clock()
+local history = {}
+
+local log, wordBox, historyBox, typingBox = nil, nil, nil, nil
+local roundsStat, lettersStat, bestStat, curWpmStat, uptimeStat = nil, nil, nil, nil, nil
+local avgStat, rwStat, diffStat = nil, nil, nil
+local cpsInput = nil
+
+local fpsAvg = 60
+pcall(function()
+    local acc, n = 0, 0
+    game:GetService("RunService").RenderStepped:Connect(function(dt)
+        acc = acc + dt
+        n = n + 1
+        if n >= 30 then fpsAvg = n / math.max(acc, 0.001) acc, n = 0, 0 end
+    end)
+end)
+
+-- ================= GAME BINDINGS (1x1x1 CALAMITY) =================
+local Events = RS:WaitForChild("Events")
+local TypingEvent = Events:WaitForChild("TypingEvent")
+local ReplaySound = Events:WaitForChild("ReplaySoundEvent")
+
+-- Word arrives as a server push (same channel the game's own AutoType uses).
+local eventWord, eventWordAt, lastEventSeen = "", 0, 0
+local defSeq, typedDefSeq = 0, 0
+local function hookWordEvent(ev)
+    pcall(function()
+        ev.OnClientEvent:Connect(function(...)
+            for _, a in ipairs({ ... }) do
+                if type(a) == "string" and a ~= "" then
+                    eventWord, eventWordAt = a, os.clock()
+                    break
+                end
+            end
+        end)
+    end)
+end
+hookWordEvent(Events:FindFirstChild("GetWordForClientEvent"))
+hookWordEvent(Events:FindFirstChild("SelectWordEvent"))
+-- Definition re-pushes (even identical text) also mark a fresh round.
+pcall(function()
+    local de = Events:FindFirstChild("DescriptionEvent")
+    if de then de.OnClientEvent:Connect(function(a)
+        if type(a) == "string" and a ~= "" then defSeq = defSeq + 1 end
+    end) end
+end)
+
+local function screenMain()
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    return pg and pg:FindFirstChild("Main") or nil
+end
+
+-- ================= HELPERS =================
+local function char() return LocalPlayer.Character end
+local function say(m)
+    if log then pcall(function() log:Append(m) end) end
+end
+local function textbox()
+    local m = screenMain()
+    local sg = m and m:FindFirstChild("SpellingGui")
+    local box = sg and sg:FindFirstChild("SpellingBox")
+    if box and box:IsA("TextBox") then return box end
+    return nil
+end
+local function paperVisible()
+    local box = textbox()
+    return box and box.Visible == true
+end
+local function isMyTurn()
+    return paperVisible()
+end
+local function currentDef()
+    local m = screenMain()
+    local dg = m and m:FindFirstChild("DescriptionGui")
+    local dt = dg and dg:FindFirstChild("DescriptionText")
+    local txt = ""
+    pcall(function() txt = tostring(dt and dt.Text or "") end)
+    return txt
+end
+local function currentWord()
+    if eventWord == "" then return "" end
+    return eventWord
+end
+local function slowMult()
+    if autoSlow and fpsAvg < 20 then return 1.6 end
+    return 1
+end
+local function charDelay()
+    if cps <= 0 then return 0 end
+    local base = 1 / cps * slowMult()
+    if not jitterOn then return base end
+    local d = base + math.random() * base
+    if math.random() < 0.06 then d = d + 0.4 + math.random() * 0.4 end
+    return d
+end
+local function isFocused()
+    local f = nil
+    pcall(function() f = isrbxactive() end)
+    if f == nil then pcall(function() f = isgameactive() end) end
+    return f
+end
+local function syncCps()
+    if not cpsInput then return end
+    pcall(function()
+        local t = tonumber(cpsInput.value)
+        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+    end)
+end
+local function mirrorType(txt)
+    pcall(function() TypingEvent:FireServer(txt, false) end)
+end
+local function noteWord(w)
+    lastWord = w
+    typedThisTurn = true
+    typedDefSeq = defSeq
+    rounds = rounds + 1
+    if roundsStat then pcall(function() roundsStat:Set(rounds) end) end
+    if rwStat then pcall(function() rwStat:Set(rounds) end) end
+    if wordBox then pcall(function() wordBox:Set(w .. "  (" .. #w .. " letters)") end) end
+    table.insert(history, w)
+    if #history > 30 then table.remove(history, 1) end
+    if historyBox then pcall(function() historyBox:Append(rounds .. ". " .. w) end) end
+    if autoCopy and w ~= "" then
+        pcall(function()
+            if type(setclipboard) == "function" then setclipboard(w) end
+        end)
+    end
+    if autoRepeat then task.spawn(function() repeatAudio() end) end
+end
+local function logTyping(w, mode, secs)
+    if typingBox then pcall(function()
+        typingBox:Append(w .. " [" .. mode .. ", " .. string.format("%.1f", secs) .. "s]")
+    end) end
+    if secs > 0 then
+        local wpm = math.floor((#w / math.max(secs, 0.01)) * 12 + 0.5)
+        if curWpmStat then pcall(function() curWpmStat:Set(wpm) end) end
+        if wpm > bestWpm then
+            bestWpm = wpm
+            if bestStat then pcall(function() bestStat:Set(bestWpm) end) end
+        end
+    end
+end
+function repeatAudio()
+    pcall(function() ReplaySound:FireServer() end)
+end
+local function submitAnswer(box)
+    if remoteSubmit or ghostMode then
+        local txt = ""
+        pcall(function() txt = box and box.Text or currentWord() end)
+        pcall(function() TypingEvent:FireServer(txt, true) end)
+        say("Submitted via remote (experimental).")
+        return
+    end
+    local f = isFocused()
+    if f == false then
+        say("Window not focused - press Enter yourself!")
+    else
+        pcall(function() keyclick(13) end)
+    end
+end
+local function ghostType(word)
+    if cps <= 0 then
+        -- INSTANT PASTE: one mirror + one submit, zero delays, fresh word
+        local fresh = currentWord()
+        if fresh ~= "" then word = string.lower(fresh) end
+        mirrorType(word)
+        pcall(function() TypingEvent:FireServer(word, true) end)
+        say("Ghost pasted instantly - check the round result.")
+        return
+    end
+    local i, n = 1, 0
+    local frag = ""
+    while i <= #word do
+        if panicStop then return end
+        frag = word:sub(1, i)
+        mirrorType(frag)
+        i = i + 1
+        n = n + 1
+        task.wait(charDelay())
+        if burstOn and n >= burstN and i <= #word then
+            n = 0
+            local p = burstPauseCs / 100 * slowMult()
+            if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+            task.wait(p)
+        end
+    end
+    task.wait(submitDelayCs / 100)
+    pcall(function() TypingEvent:FireServer(frag, true) end)
+    say("Ghost submit sent - check the round result.")
+end
+local function typeWord(word)
+    if typing then return end
+    syncCps()
+    if maxLen > 0 and #word > maxLen then say("Skipped: " .. #word .. " letters over limit.") return end
+    if focusPause and isFocused() == false then say("Paused: window not focused.") return end
+    typing = true
+    panicStop = false
+    local t0 = os.clock()
+    if ghostMode then
+        say("Ghost mode: typing invisibly...")
+        ghostType(word)
+        typeTimeTotal = typeTimeTotal + (os.clock() - t0)
+        lettersTotal = lettersTotal + #word
+        if lettersStat then pcall(function() lettersStat:Set(lettersTotal) end) end
+        logTyping(word, (cps <= 0 and "ghost-paste" or "ghost"), os.clock() - t0)
+        typing = false
+        return
+    end
+    local box = textbox()
+    if not box then say("No textbox found.") typing = false return end
+    if not paperVisible() then say("SpellingBox hidden - not your turn?") typing = false return end
+    pcall(function() box:CaptureFocus() end)
+    box.Text = ""
+    mirrorType("")
+    if cps > 0 then task.wait(preDelayCs / 100) end
+    if cps <= 0 then
+        -- INSTANT PASTE: fresh word, zero delays
+        local fresh = currentWord()
+        if fresh ~= "" then word = string.lower(fresh) end
+        say("PASTE MODE - ban risk accepted.")
+        box.Text = word
+        mirrorType(word)
+    else
+        local i, n = 1, 0
+        while i <= #word do
+            if panicStop then typing = false return end
+            if not isMyTurn() then say("Turn lost mid-type, stopping.") typing = false return end
+            if typosOn and i > 1 and i < #word and math.random(100) <= typoRate then
+                local ch = word:sub(i, i)
+                local wrong = string.char(math.random(97, 122))
+                if wrong == ch then wrong = "x" end
+                box.Text = word:sub(1, i - 1) .. wrong
+                mirrorType(box.Text)
+                task.wait(charDelay() + 0.15 + math.random() * 0.3)
+                box.Text = word:sub(1, i - 1)
+                mirrorType(box.Text)
+                task.wait(0.12 + math.random() * 0.2)
+            end
+            box.Text = word:sub(1, i)
+            mirrorType(box.Text)
+            i = i + 1
+            n = n + 1
+            task.wait(charDelay())
+            if burstOn and n >= burstN and i <= #word then
+                n = 0
+                local p = burstPauseCs / 100 * slowMult()
+                if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+                task.wait(p)
+            end
+        end
+    end
+    lettersTotal = lettersTotal + #word
+    if lettersStat then pcall(function() lettersStat:Set(lettersTotal) end) end
+    typeTimeTotal = typeTimeTotal + (os.clock() - t0)
+    logTyping(word, (cps <= 0 and "paste" or ("visual@" .. cps .. "cps")), os.clock() - t0)
+    if cps > 0 then task.wait(submitDelayCs / 100) end
+    submitAnswer(box)
+    typing = false
+end
+
+-- ================= SPELLER TAB =================
+log = TabSpell:CreateConsole({ name = "Feed", height = 90, follow = true, maxLines = 60 })
+wordBox = TabSpell:CreateConsole({ name = "Current word", height = 50, maxLines = 5 })
+
+local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types the round word on your turn", value = false, forgetState = true, callback = function(v)
+    autoOn = v
+    if v then
+        say("Auto-spell ON. Keep the Roblox window focused.")
+        task.spawn(function()
+            while autoOn do
+                local w = currentWord()
+                local mine = paperVisible()
+                if not mine then
+                    turnActive = false
+                    typedThisTurn = false
+                    -- NOTE: eventWord intentionally kept here. A repeated word
+                    -- is not always re-pushed, and clearing ate the answer.
+                    if not typing then
+                        local d = currentDef()
+                        if d ~= "" and wordBox then pcall(function() wordBox:Set("waiting... [" .. d:sub(1, 60) .. "]") end) end
+                    end
+                else
+                    local freshTurn = false
+                    if not turnActive then
+                        turnActive = true
+                        typedThisTurn = false
+                        freshTurn = true
+                    end
+                    if eventWordAt > lastEventSeen then
+                        lastEventSeen = eventWordAt
+                        typedThisTurn = false
+                    end
+                    if w ~= "" and not typing and (not typedThisTurn or w ~= lastWord or defSeq ~= typedDefSeq) then
+                        if freshTurn and eventWordAt <= lastEventSeen and defSeq <= typedDefSeq then
+                            say("No fresh push - retyping last word.")
+                        end
+                        noteWord(w)
+                        typeWord(string.lower(w))
+                    elseif w == "" and not typing then
+                        local d = currentDef()
+                        if d ~= "" and wordBox then pcall(function() wordBox:Set("waiting for word... [" .. d:sub(1, 60) .. "]") end) end
+                    end
+                end
+                if uptimeStat then pcall(function() uptimeStat:Set(math.floor(os.clock() - startTime)) end) end
+                if avgStat then
+                    local a = typeTimeTotal > 0 and math.floor(lettersTotal / typeTimeTotal + 0.5) or 0
+                    pcall(function() avgStat:Set(a) end)
+                end
+                if autoFocus and paperVisible() then
+                    local bx = textbox()
+                    if bx then pcall(function()
+                        if not bx:IsFocused() then bx:CaptureFocus() end
+                    end) end
+                end
+                task.wait(0.4)
+            end
+        end)
+    else
+        say("Auto-spell OFF.")
+    end
+end })
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste (ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+    cps = vv
+    if vv == 0 then say("WARNING: paste mode = ban risk.") end
+end })
+TabSpell:CreateButton({ name = "PASTE NOW", description = "Forces cps=0 and pastes the current word instantly. HIGH RISK.", callback = function()
+    task.spawn(function()
+        cps = 0
+        pcall(function() cpsInput:Set("0", true) end)
+        local w = currentWord()
+        if w == "" then say("No active word.") return end
+        noteWord(w)
+        typeWord(string.lower(w))
+    end)
+end })
+local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
+    burstOn = v
+end })
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+end })
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+end })
+local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after prompt opens before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
+    preDelayCs = v
+end })
+local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before Enter", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
+    submitDelayCs = v
+end })
+local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
+    typoRate = v
+end })
+local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF looks macro-made.", value = true, forgetState = true, callback = function(v)
+    jitterOn = v
+    if not v then say("WARNING: jitter OFF - metronome typing looks like a macro.") end
+end })
+local typosToggle = TabSpell:CreateToggle({ name = "Human typos", description = "Occasional wrong letter + fix (visual mode).", value = true, forgetState = true, callback = function(v)
+    typosOn = v
+end })
+local ghostToggle = TabSpell:CreateToggle({ name = "Ghost mode", description = "Never touches the textbox: fires mirror + submit directly. Experimental.", value = false, forgetState = true, callback = function(v)
+    ghostMode = v
+    if v then say("Ghost ON: submit is always by remote in this mode.") end
+end })
+local remoteToggle = TabSpell:CreateToggle({ name = "Remote submit", description = "Fires TypingEvent submit instead of pressing Enter. Experimental.", value = false, forgetState = true, callback = function(v)
+    remoteSubmit = v
+    if v then say("Remote submit ON - watch whether rounds accept it.") end
+end })
+TabSpell:CreateButton({ name = "Preset: Human", description = "Types like a person: 7cps, bursts, typos, jitter", callback = function()
+    cpsInput:Set("7")
+    burstToggle:Set(true)
+    burstSlider:Set("5")
+    pauseSlider:Set("30")
+    preSlider:Set(30)
+    submitSlider:Set(30)
+    typoSlider:Set(5)
+    jitterToggle:Set(true)
+    typosToggle:Set(true)
+    ghostToggle:Set(false)
+    remoteToggle:Set(false)
+    say("Human preset applied.")
+end })
+TabSpell:CreateButton({ name = "Preset: Macro", description = "Types like a macro: ghost + flat 40cps, no pauses. HIGH RISK.", callback = function()
+    ghostToggle:Set(true)
+    cpsInput:Set("40")
+    burstToggle:Set(false)
+    jitterToggle:Set(false)
+    typosToggle:Set(false)
+    say("Macro preset applied - HIGH RISK.")
+end })
+TabSpell:CreateButton({ name = "Check my ban risk", description = "Rates your current settings", callback = function()
+    syncCps()
+    local risk, why
+    if cps == 0 and not ghostMode then
+        risk, why = "EXTREME", "paste mode writes the whole word at once"
+    elseif not ghostMode and not jitterOn then
+        risk, why = "HIGH", "metronome-regular timing looks like a macro"
+    elseif ghostMode then
+        risk, why = "MEDIUM", "invisible locally, but the server sees mirror cadence"
+    elseif cps > 12 then
+        risk, why = "MEDIUM", "fast but jittered"
+    else
+        risk, why = "LOW", "human pace, jitter, pauses"
+    end
+    say("Ban risk: " .. risk .. " - " .. why)
+end })
+
+-- ================= ROUND TAB =================
+TabRound:CreateButton({ name = "Repeat word audio", description = "Replays the spoken word", callback = function()
+    task.spawn(function() repeatAudio() end)
+end })
+TabRound:CreateToggle({ name = "Auto-repeat on turn", description = "Replays audio every turn", value = false, forgetState = true, callback = function(v)
+    autoRepeat = v
+end })
+historyBox = TabRound:CreateConsole({ name = "Word history", height = 90, follow = true, maxLines = 30 })
+TabRound:CreateButton({ name = "Clear history", callback = function()
+    history = {}
+    if historyBox then pcall(function() historyBox:Clear() end) end
+end })
+roundsStat = TabRound:CreateStat({ name = "Rounds", value = 0 })
+lettersStat = TabRound:CreateStat({ name = "Letters typed", value = 0 })
+bestStat = TabRound:CreateStat({ name = "Best WPM", value = 0 })
+curWpmStat = TabRound:CreateStat({ name = "Current WPM", value = 0 })
+uptimeStat = TabRound:CreateStat({ name = "Uptime", value = 0, suffix = "s" })
+avgStat = TabRound:CreateStat({ name = "Avg CPS achieved", value = 0 })
+TabRound:CreateButton({ name = "Copy current word", description = "Copies to clipboard", callback = function()
+    local w = currentWord()
+    if w ~= "" then
+        local done = false
+        pcall(function()
+            if type(setclipboard) == "function" then setclipboard(w) done = true end
+        end)
+        say(done and "Copied: " .. w or "Clipboard unavailable.")
+    else
+        say("No active word.")
+    end
+end })
+TabRound:CreateToggle({ name = "Auto-copy current word", description = "Copies every new word to clipboard automatically", value = false, forgetState = true, callback = function(v)
+    autoCopy = v
+    if v then
+        local w0 = currentWord()
+        if w0 ~= "" then pcall(function()
+            if type(setclipboard) == "function" then setclipboard(w0) end
+        end) end
+        say("Auto-copy ON.")
+    else
+        say("Auto-copy OFF.")
+    end
+end })
+TabRound:CreateButton({ name = "Skip word", description = "Ignores the current word (no typing)", callback = function()
+    local w = currentWord()
+    if w ~= "" then
+        noteWord(w)
+        say("Skipped: " .. w)
+    end
+end })
+local maxLenSlider = TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
+    maxLen = v
+end })
+
+-- ================= UTILITY TAB =================
+TabUtil:CreateToggle({ name = "Anti-AFK", description = "Jumps every 2 minutes", value = false, forgetState = true, callback = function(v)
+    antiAfk = v
+    if v then task.spawn(function()
+        while antiAfk do
+            task.wait(120)
+            if antiAfk then
+                local c = char()
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                if h then pcall(function() h.Jump = true end) end
+            end
+        end
+    end) end
+end })
+TabUtil:CreateButton({ name = "Rejoin server", callback = function()
+    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end })
+TabUtil:CreateButton({ name = "Server hop", callback = function()
+    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+end })
+TabUtil:CreateToggle({ name = "Potato mode", description = "Kills shadows + post effects for FPS", value = false, forgetState = true, callback = function(v)
+    potato = v
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = not v
+        for _, e in ipairs(L:GetChildren()) do
+            if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") then
+                e.Enabled = not v
+            end
+        end
+    end)
+end })
+TabUtil:CreateButton({ name = "Say word in chat", description = "Sends current word to chat", callback = function()
+    local w = currentWord()
+    if w == "" then say("No active word.") return end
+    local done = false
+    pcall(function()
+        game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(w)
+        done = true
+    end)
+    if not done then
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest"):FireServer(w, "All")
+            done = true
+        end)
+    end
+    say(done and "Said in chat." or "Chat send failed.")
+end })
+TabUtil:CreateButton({ name = "Reset session stats", callback = function()
+    rounds, lettersTotal, typeTimeTotal, bestWpm = 0, 0, 0, 0
+    startTime = os.clock()
+    history = {}
+    lastWord = ""
+    if historyBox then pcall(function() historyBox:Clear() end) end
+    for _, s in ipairs({ roundsStat, lettersStat, bestStat, avgStat, curWpmStat, uptimeStat }) do
+        if s then pcall(function() s:Set(0) end) end
+    end
+    say("Session stats reset.")
+end })
+TabUtil:CreateButton({ name = "Focus check", description = "Is the Roblox window focused? (needed for Enter)", callback = function()
+    local f = isFocused()
+    say("Window focused: " .. tostring(f))
+end })
+TabUtil:CreateButton({ name = "Type current word now", description = "One-shot, no auto mode needed", callback = function()
+    task.spawn(function()
+        local w = currentWord()
+        if w == "" then say("No active word.") return end
+        noteWord(w)
+        local wasAuto = autoOn
+        autoOn = true
+        typeWord(string.lower(w))
+        autoOn = wasAuto
+    end)
+end })
+TabUtil:CreateToggle({ name = "Auto-focus textbox", description = "Grabs focus when your prompt opens", value = false, forgetState = true, callback = function(v)
+    autoFocus = v
+end })
+TabUtil:CreateButton({ name = "How to use", description = "Quick instructions", callback = function()
+    say("1) Turn on Auto-spell. 2) Keep window focused. 3) Play - it types.")
+    say("Word arrives from the server at turn start. Ghost/remote submit are experimental - visual+Enter uses the game's own submit.")
+end })
+
+-- ================= SAFETY TAB =================
+TabSafe:CreateToggle({ name = "Focus-pause", description = "Aborts typing if window loses focus", value = false, forgetState = true, callback = function(v)
+    focusPause = v
+end })
+TabSafe:CreateToggle({ name = "Auto-slow on lag", description = "Slows typing under 20 FPS", value = false, forgetState = true, callback = function(v)
+    autoSlow = v
+end })
+TabSafe:CreateButton({ name = "PANIC", description = "Stops everything instantly + clears box", callback = function()
+    autoOn = false
+    panicStop = true
+    pcall(function() autoToggle:Set(false, true) end)
+    local bx = textbox()
+    if bx then pcall(function() bx.Text = "" end) end
+    mirrorType("")
+    say("PANIC: all stopped, box cleared.")
+end })
+typingBox = TabSafe:CreateConsole({ name = "Typing log", height = 90, follow = true, maxLines = 40 })
+TabSafe:CreateButton({ name = "Clear typing log", callback = function()
+    if typingBox then pcall(function() typingBox:Clear() end) end
+end })
+TabSafe:CreateButton({ name = "Session report", description = "Words, letters, time, avg CPS", callback = function()
+    local t = math.floor(os.clock() - startTime)
+    local a = typeTimeTotal > 0 and math.floor(lettersTotal / typeTimeTotal + 0.5) or 0
+    say("Session: " .. rounds .. " words, " .. lettersTotal .. " letters, " .. t .. "s, avg " .. a .. " cps, best " .. bestWpm .. " wpm.")
+end })
+TabSafe:CreateKeybind({ name = "Emergency stop key", description = "Stops auto-spell instantly", value = "P", forgetState = true, callback = function()
+    autoOn = false
+    panicStop = true
+    pcall(function() autoToggle:Set(false, true) end)
+    say("Emergency stop hit.")
+end })
+rwStat = TabSafe:CreateStat({ name = "Round words", value = 0 })
+diffStat = TabSafe:CreateStat({ name = "Difficulty", value = 0 })
+TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, destroys UI", callback = function()
+    autoOn = false
+    antiAfk = false
+    window:Unload()
+end })
+
+say("Loaded: 1x1x1's Spelling Bee AutoTyper. Turn on Auto-spell and play.")
+]],
 }
 
 local META = {
@@ -5005,6 +5673,8 @@ local META = {
       sig = function() return hasPath("SpellingBeeRemotes") end },
     { id = "nerdzone", universe = 7079152534, places = { [74779072921656] = true },
       sig = function() return hasPath("Remotes", "SubmitAnswer") and hasPath("Modules", "Data", "WordData") end },
+    { id = "calamity", universe = 9018973864, places = { [111866664822693] = true },
+      sig = function() return hasPath("Events", "GetWordForClientEvent") and hasPath("Events", "TypingEvent") end },
 }
 
 local function detect()

@@ -691,7 +691,7 @@ task.spawn(function()
     end
 end)
 
-say("Loaded: 50 features. Turn on Auto-spell and play.")
+say("Loaded [v2026-09-19b]: 50 features. Turn on Auto-spell and play.")
 ]],
     cups = [[--!nonstrict
 -- Impossible Auto Speller v2 (Carl-inspired) -- Rayfield Gen2 edition
@@ -1484,7 +1484,7 @@ TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, cl
     if not ok then pcall(function() (window :: any):Destroy() end) end
 end })
 
-say("Loaded: 50 features. Turn on Auto-spell and play.")
+say("Loaded [v2026-09-19b]: 50 features. Turn on Auto-spell and play.")
 ]],
     xister = [[--!nonstrict
 -- XisterZerius Spelling Bee (Carl-inspired) -- Rayfield Gen2 edition
@@ -2393,7 +2393,7 @@ TabSafe:CreateButton({ name = "Force-close spelling GUI (bonus)", description = 
     say("Spelling GUI force-closed. It will reopen on your next turn.")
 end })
 
-say("Loaded: 50 features. Turn on Auto-spell and play.")
+say("Loaded [v2026-09-19b]: 50 features. Turn on Auto-spell and play.")
 ]],
     openw = [[-- Openw Spelling Bee AutoTyper -- Rayfield Gen2 edition (Openw's ANOTHER voice spelling bee)
 -- 50 features: Speller / Round / Utility / Safety tabs.
@@ -3102,7 +3102,7 @@ TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, de
     window:Unload()
 end })
 
-say("Loaded: Openw Spelling Bee AutoTyper. Turn on Auto-spell and play. Word DB: " .. tostring(defCount) .. " defs.")
+say("Loaded [v2026-09-19b]: Openw Spelling Bee AutoTyper. Turn on Auto-spell and play. Word DB: " .. tostring(defCount) .. " defs.")
 ]],
     labyrinth = [[--!nonstrict
 -- Spelling Labyrinth Bee (Carl-inspired) -- Rayfield Gen2 edition
@@ -3942,7 +3942,7 @@ TabSafe:CreateButton({ name = "Force-close input (bonus)", description = "Hides 
     say("Input force-closed. It will reopen on your next turn.")
 end })
 
-say("Loaded: 50 features. Turn on Auto-spell and play.")
+say("Loaded [v2026-09-19b]: 50 features. Turn on Auto-spell and play.")
 ]],
     karls = [[-- Karls Spelling Bee AutoTyper -- Rayfield Gen2 edition (Karl's Spelling Bee [MASTER])
 -- 50 features: Speller / Round / Utility / Safety tabs.
@@ -4607,7 +4607,19 @@ TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, de
     window:Unload()
 end })
 
-say("Loaded: Karls Spelling Bee AutoTyper, 50 features. Turn on Auto-spell and play.")
+say("Loaded [v2026-09-19b]: Karls Spelling Bee AutoTyper, 50 features. Turn on Auto-spell and play.")
+
+-- Remote diagnostics handle (version check + manual trigger without clicks).
+pcall(function()
+    getgenv().KarlsTyper = {
+        version = "2026-09-19b",
+        note = noteWord,
+        word = currentWord,
+        copy = copyText,
+        panel = showBigWord,
+        setAuto = function(v) autoCopy = v end,
+    }
+end)
 ]],
     timmys = [[-- Timmy's Max Typer -- Rayfield Gen2 edition
 -- Your game sends the word to the client (WordSelector) and accepts instant
@@ -4864,7 +4876,7 @@ task.spawn(function()
     end
 end)
 
-say("Max typer loaded. Auto-type is ON - leave the built-in panel OFF.")
+say("[v2026-09-19b] Max typer loaded. Auto-type is ON - leave the built-in panel OFF.")
 ]],
     nerdzone = [[-- Spelling bee Auto Typer -- Rayfield Gen2 edition (adapted for Spelling Bee UPD revamp, place v1052)
 -- 50 features: Speller / Round / Utility / Safety tabs.
@@ -5613,7 +5625,7 @@ TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, de
     window:Unload()
 end })
 
-say("Loaded: 50 features (revamp build). Turn on Auto-spell and play. Word solver: " .. tostring(#byDef) .. " defs cached.")
+say("Loaded [v2026-09-19b]: 50 features (revamp build). Turn on Auto-spell and play. Word solver: " .. tostring(#byDef) .. " defs cached.")
 ]],
     calamity = [[-- 1x1x1's Spelling Bee AutoTyper -- Rayfield Gen2 edition (1x1x1's Spelling Bee [CALAMITY])
 -- Word = GetWordForClientEvent/SelectWordEvent push (cached) | Box = Main.SpellingGui.SpellingBox | Turn = box Visible
@@ -6318,7 +6330,7 @@ TabSafe:CreateButton({ name = "Unload menu", description = "Stops everything, de
     window:Unload()
 end })
 
-say("Loaded: 1x1x1's Spelling Bee AutoTyper. Turn on Auto-spell and play.")
+say("Loaded [v2026-09-19b]: 1x1x1's Spelling Bee AutoTyper. Turn on Auto-spell and play.")
 ]],
 }
 

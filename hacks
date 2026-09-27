@@ -1,8 +1,3 @@
--- Bee Bundle: all 8 spelling-bee autotypers in one file.
--- Usage: loadstring(game:HttpGet("PUT-YOUR-RAW-URL-HERE"))()
--- Picks by UniverseId, then PlaceId, then game-var signatures. No GUI.
--- Override: getgenv().BeeForce = "carls" | "cups" | "xister" | "openw" | "labyrinth" | "karls" | "timmys" | "nerdzone"
-
 local RS = game:GetService("ReplicatedStorage")
 
 local function child(inst, name)

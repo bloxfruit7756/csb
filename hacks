@@ -217,7 +217,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function noteWord(w)
@@ -446,8 +446,8 @@ local correctToggle = TabSpell:CreateToggle({ name = "Auto correct", description
         say("Auto correct OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste (paste-ban bait). Over ~33 trips macro check. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste (paste-ban bait). Over ~33 trips macro check. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = paste-ban risk.") end
     if vv > 33 then say("WARNING: " .. vv .. " cps will trip the macro check in visual mode.") end
@@ -465,20 +465,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after paper opens before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after paper opens before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before Enter", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before Enter", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF is asking for a ban.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -585,8 +585,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w)
     end
 end })
-local maxLenSlider = TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+local maxLenSlider = TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 
 -- ================= UTILITY TAB (31-40) =================
@@ -918,7 +918,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function say(m)
@@ -1239,8 +1239,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste (paste-ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste (paste-ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = paste-ban risk.") end
     if vv > 33 then say("WARNING: " .. vv .. " cps looks macro-made.") end
@@ -1262,20 +1262,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after turn starts before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after turn starts before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before submit", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before submit", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF is asking for a ban.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -1401,8 +1401,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w:sub(1, 40))
     end
 end })
-TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 
 -- ================= UTILITY TAB (31-40) =================
@@ -1763,7 +1763,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function say(m)
@@ -2180,8 +2180,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "Visual mode only. 0 = instant paste. Over 40 uses per-frame batching.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "Visual mode only. 0 = instant paste. Over 40 uses per-frame batching.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = paste-ban risk.") end
     if vv > 33 then say("WARNING: " .. vv .. " cps looks macro-made.") end
@@ -2210,20 +2210,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after turn starts before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after turn starts before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before submit", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before submit", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix (visual mode)", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix (visual mode)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF is asking for a ban.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -2327,8 +2327,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w:sub(1, 40))
     end
 end })
-TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 TabRound:CreateDivider({ text = "Admin words (bonus)" })
 adminBox = TabRound:CreateConsole({ name = "Last admin word", height = 50, maxLines = 5 })
@@ -2714,7 +2714,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function mirrorType(txt)
@@ -2943,8 +2943,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste (ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste (ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = ban risk.") end
 end })
@@ -2961,20 +2961,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after prompt opens before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after prompt opens before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before Enter", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before Enter", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF looks macro-made.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -3083,8 +3083,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w)
     end
 end })
-local maxLenSlider = TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+local maxLenSlider = TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 
 -- ================= UTILITY TAB =================
@@ -3425,7 +3425,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function say(m)
@@ -3769,8 +3769,8 @@ autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "Types t
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste. Over 40 uses per-frame batching so high CPS stays accurate.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste. Over 40 uses per-frame batching so high CPS stays accurate.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = paste-ban risk.") end
     if vv > 33 then say("WARNING: " .. vv .. " cps looks macro-made.") end
@@ -3799,20 +3799,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after box appears before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after box appears before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before submit", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before submit", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF is asking for a ban.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -3912,8 +3912,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w:sub(1, 40))
     end
 end })
-TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 TabRound:CreateDivider({ text = "Word bank (bonus)" })
 TabRound:CreateButton({ name = "Show word bank info (bonus)", description = "Counts words per difficulty from WordsModule", callback = function()
@@ -4268,7 +4268,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function mirrorType(txt)
@@ -4492,8 +4492,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste. This game has an antipaste watcher - paste = ban bait. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste. This game has an antipaste watcher - paste = ban bait. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode trips the antipaste watcher.") end
 end })
@@ -4510,20 +4510,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after prompt opens before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after prompt opens before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before Enter", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before Enter", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF is asking for a ban.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -4632,8 +4632,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w)
     end
 end })
-local maxLenSlider = TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+local maxLenSlider = TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 
 -- ================= UTILITY TAB (31-40) =================
@@ -5005,21 +5005,21 @@ TabMain:CreateToggle({ name = "Auto-type", description = "Types + submits on wor
     autoOn = v
     say(v and "Auto-type ON." or "Auto-type OFF.")
 end })
-TabMain:CreateSlider({ name = "Speed (WPM)", description = "99999 = fastest per-letter", range = { 1, 99999 }, increment = 1, value = 99999, forgetState = true, callback = function(v)
-    wpm = v
+TabMain:CreateInput({ name = "Speed (WPM)", description = "1237872153652143821736721536721361263752153671253576125673621 = fastest per-letter", numeric = true, value = "99999", placeholder = "99999", forgetState = true, callback = function(text)
+    wpm = math.clamp(math.floor(tonumber(text) or 99999), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-TabMain:CreateSlider({ name = "Min seconds per word", description = "Whole word always takes at least this long - this is what fixes high-speed fails", range = { 0, 5 }, increment = 1, value = 1.5, forgetState = true, callback = function(v)
-    minSecs = v
+TabMain:CreateInput({ name = "Min seconds per word", description = "Whole word always takes at least this long - this is what fixes high-speed fails", numeric = true, value = "1.5", placeholder = "1.5", forgetState = true, callback = function(text)
+    minSecs = math.clamp(tonumber(text) or 1.5, 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 TabMain:CreateToggle({ name = "Burst engine", description = "Pause every N letters - still applies at 0/instant", value = true, forgetState = true, callback = function(v)
     burstOn = v
     say(v and "Burst ON (applies even at instant)." or "Burst OFF.")
 end })
-TabMain:CreateSlider({ name = "Burst size", description = "Letters per burst", range = { 1, 20 }, increment = 1, value = 5, forgetState = true, callback = function(v)
-    burstN = v
+TabMain:CreateInput({ name = "Burst size", description = "Letters per burst", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-TabMain:CreateSlider({ name = "Burst pause (cs)", description = "Pause per burst, centiseconds", range = { 0, 200 }, increment = 1, value = 30, forgetState = true, callback = function(v)
-    burstPauseCs = v
+TabMain:CreateInput({ name = "Burst pause (cs)", description = "Pause per burst, centiseconds", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 TabMain:CreateToggle({ name = "Ghost mode", description = "Never touches the box - burst pauses still apply", value = false, forgetState = true, callback = function(v)
     ghostMode = v
@@ -5346,7 +5346,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function noteWord(w)
@@ -5587,8 +5587,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste (paste-ban bait). Server throttles Type ~0.08s. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste (paste-ban bait). Server throttles Type ~0.08s. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = paste-ban risk.") end
     if vv > 12 then say("NOTE: game throttles Type ~0.08s; over ~12cps the server ignores extras.") end
@@ -5606,20 +5606,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after paper opens before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after paper opens before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before Enter", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before Enter", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF is asking for a ban.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -5728,8 +5728,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w)
     end
 end })
-local maxLenSlider = TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+local maxLenSlider = TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 
 -- ================= UTILITY TAB (31-40) =================
@@ -6082,7 +6082,7 @@ local function syncCps()
     if not cpsInput then return end
     pcall(function()
         local t = tonumber(cpsInput.value)
-        if t then cps = math.clamp(math.floor(t), 0, 1000) end
+        if t then cps = math.clamp(math.floor(t), 0, 1237872153652143821736721536721361263752153671253576125673621) end
     end)
 end
 local function mirrorType(txt)
@@ -6321,8 +6321,8 @@ local autoToggle = TabSpell:CreateToggle({ name = "Auto-spell", description = "T
         say("Auto-spell OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1000)", description = "0 = instant paste (ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
-    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1000)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste (ban bait). Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+    local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = ban risk.") end
 end })
@@ -6339,20 +6339,20 @@ end })
 local burstToggle = TabSpell:CreateToggle({ name = "Burst engine", description = "Pause between groups of letters. OFF = steady stream.", value = true, forgetState = true, callback = function(v)
     burstOn = v
 end })
-local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-12)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
-    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 12)
+local burstSlider = TabSpell:CreateInput({ name = "Burst letters", description = "Letters typed before each pause (1-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    burstN = math.clamp(math.floor(tonumber(text) or 5), 1, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-200)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
-    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 200)
+local pauseSlider = TabSpell:CreateInput({ name = "Burst pause", description = "Pause between bursts, in centiseconds (0-1237872153652143821736721536721361263752153671253576125673621)", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    burstPauseCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local preSlider = TabSpell:CreateSlider({ name = "Pre-type delay", description = "Wait after prompt opens before typing", range = { 0, 200 }, increment = 5, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    preDelayCs = v
+local preSlider = TabSpell:CreateInput({ name = "Pre-type delay", description = "Wait after prompt opens before typing", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    preDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local submitSlider = TabSpell:CreateSlider({ name = "Submit delay", description = "Wait after typing before Enter", range = { 0, 300 }, increment = 10, value = 30, suffix = "cs", forgetState = true, callback = function(v)
-    submitDelayCs = v
+local submitSlider = TabSpell:CreateInput({ name = "Submit delay", description = "Wait after typing before Enter", numeric = true, value = "30", placeholder = "30", forgetState = true, callback = function(text)
+    submitDelayCs = math.clamp(math.floor(tonumber(text) or 30), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
-local typoSlider = TabSpell:CreateSlider({ name = "Typo rate", description = "Chance per letter of a typo + fix", range = { 0, 20 }, increment = 1, value = 5, suffix = "%", forgetState = true, callback = function(v)
-    typoRate = v
+local typoSlider = TabSpell:CreateInput({ name = "Typo rate", description = "Chance per letter of a typo + fix", numeric = true, value = "5", placeholder = "5", forgetState = true, callback = function(text)
+    typoRate = math.clamp(math.floor(tonumber(text) or 5), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 local jitterToggle = TabSpell:CreateToggle({ name = "Jitter (anti-macro)", description = "Random timing. Turning OFF looks macro-made.", value = true, forgetState = true, callback = function(v)
     jitterOn = v
@@ -6461,8 +6461,8 @@ TabRound:CreateButton({ name = "Skip word", description = "Ignores the current w
         say("Skipped: " .. w)
     end
 end })
-local maxLenSlider = TabRound:CreateSlider({ name = "Max word length (0=off)", description = "Skips words longer than this", range = { 0, 60 }, increment = 1, value = 0, forgetState = true, callback = function(v)
-    maxLen = v
+local maxLenSlider = TabRound:CreateInput({ name = "Max word length (0=off)", description = "Skips words longer than this", numeric = true, value = "0", placeholder = "0", forgetState = true, callback = function(text)
+    maxLen = math.clamp(math.floor(tonumber(text) or 0), 0, 1237872153652143821736721536721361263752153671253576125673621)
 end })
 
 -- ================= UTILITY TAB =================

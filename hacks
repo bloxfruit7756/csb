@@ -195,13 +195,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -892,13 +892,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -1732,13 +1732,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -2691,13 +2691,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -3394,13 +3394,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -4245,13 +4245,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -5323,13 +5323,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base
@@ -6059,13 +6059,13 @@ local function slowMult()
     if autoSlow and fpsAvg < 20 then return 1.6 end
     return 1
 end
+local function burstPauseDur()
+    local p = burstPauseCs / 100 * slowMult()
+    if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
+    return p
+end
 local function charDelay()
     if cps <= 0 then return 0 end
-local function burstPauseDur()
-        local p = burstPauseCs / 100 * slowMult()
-        if jitterOn then p = p + math.random() * (burstPauseCs / 100) end
-        return p
-    end
     local base = 1 / cps * slowMult()
     if not jitterOn then return base end
     local d = base + math.random() * base

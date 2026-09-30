@@ -446,7 +446,7 @@ local correctToggle = TabSpell:CreateToggle({ name = "Auto correct", description
         say("Auto correct OFF.")
     end
 end })
-cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-1237872153652143821736721536721361263752153671253576125673621)", description = "0 = instant paste (paste-ban bait). Over ~33 trips macro check. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
+cpsInput = TabSpell:CreateInput({ name = "Speed (chars/sec, 0-A LOT)", description = "0 = instant paste (paste-ban bait). Over ~33 trips macro check. Real rate caps at FPS.", numeric = true, value = "7", placeholder = "7", forgetState = true, callback = function(text)
     local vv = math.clamp(math.floor(tonumber(text) or 7), 0, 1237872153652143821736721536721361263752153671253576125673621)
     cps = vv
     if vv == 0 then say("WARNING: paste mode = paste-ban risk.") end

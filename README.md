@@ -5,4 +5,4 @@
 * **FREE**
 * **Open Source.**
 
-# Thank you for reading this!
+# Thank you for reading this and have fun scripting!
